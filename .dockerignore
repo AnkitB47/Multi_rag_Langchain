@@ -1,0 +1,51 @@
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Ignore virtual environments
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+
+# Ignore local system files
+.DS_Store
+Thumbs.db
+
+# Ignore Git data
+.git/
+.gitignore
+
+# Ignore test and dev-only files
+tests/
+notebooks/
+*.ipynb
+
+# Ignore secrets and environment files
+.env
+.env.*
+
+# Ignore CI/CD files not needed in container
+.github/
+*.yml
+
+# Ignore OS-specific files
+*.swp
+*.bak
+*.tmp
+*.log
+
+# Ignore Streamlit and caching data
+.streamlit/
+*.sqlite3
+
+# Ignore deployment metadata
+fly.toml
+*.md
+
+# Ignore Docker-related junk
+docker-compose.yml
+Dockerfile.*
