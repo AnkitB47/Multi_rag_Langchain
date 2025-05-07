@@ -33,7 +33,7 @@ jobs:
       - name: 🧪 Run Pytest Tests
         run: |
           echo "🧪 Running unit tests..."
-          pytest tests/
+          PYTHONPATH=src pytest src/langgraphagenticai/tests
 
       - name: ⚙️ Install Fly CLI
         uses: superfly/flyctl-actions/setup-flyctl@master
