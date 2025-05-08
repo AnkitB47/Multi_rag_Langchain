@@ -19,6 +19,10 @@ ENV PYTHONPATH=/app/src
     
 # ---- Expose Streamlit Port ----
 EXPOSE 8501
+
+# ---- Create a writable /tmp directory ----
+RUN mkdir -p /tmp && chmod 777 /tmp
+ENV TMPDIR=/tmp
     
 # ---- Start Command ----
 CMD ["streamlit", "run", "src/langgraphagenticai/ui/app.py", "--server.port=8501", "--server.address=0.0.0.0"]

@@ -7,7 +7,7 @@ st.title("🤖 Agentic Multi-RAG Chatbot")
 query = st.text_input("💬 Ask your question")
 lang = st.selectbox("🌍 Response Language", ["en", "de", "hi", "fr"])
 pdf_file = st.file_uploader("📄 Upload a PDF", type=["pdf"])
-image_file = st.file_uploader("🖼️ Upload an Image", type=["png", "jpg"])
+image_file = st.file_uploader("🖼️ Upload an Image", type=["png", "jpg", "jpeg"])
 
 if st.button("Ask"):
     pdf_path, img_path = None, None
