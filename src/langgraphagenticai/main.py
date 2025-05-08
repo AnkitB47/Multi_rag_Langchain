@@ -1,4 +1,4 @@
-from langgraphagenticai.ui.streamlit_app import *
+from langgraphagenticai.ui.app import *
 
 if __name__ == "__main__":
     import streamlit.web.bootstrap
