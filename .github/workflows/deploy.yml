@@ -2,9 +2,9 @@ name: 🚀 CI/CD - Lint, Test & Deploy to Fly.io
 
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:  
+    branches: [main]
+  workflow_dispatch: 
+
 jobs:
   build-test-deploy:
     name: 🔧 Build, Test, and Deploy
@@ -26,20 +26,16 @@ jobs:
           pip install flake8 pytest
 
       - name: ✅ Run Flake8 Linting
-        run: |
-          echo "🔍 Running flake8..."
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: 🧪 Run Pytest Tests
-        run: |
-          echo "🧪 Running unit tests..."
-          PYTHONPATH=src pytest src/langgraphagenticai/tests
+        run: PYTHONPATH=src pytest src/langgraphagenticai/tests
 
       - name: ⚙️ Install Fly CLI
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: 🔐 Authenticate with Fly.io
-        run: flyctl auth login --access-token "${{ secrets.FLY_API_TOKEN }}"
-      
-      - name: 🚀 Deploy to Fly.io
-        run: flyctl deploy --remote-only --dockerfile ./Dockerfile -a multi-ai-chatbot
+        run: flyctl auth token "${{ secrets.FLY_API_TOKEN }}"
+
+      - name: 🚀 Deploy to Fly.io (force full build)
+        run: flyctl deploy --remote-only --dockerfile ./Dockerfile -a multi-ai-chatbot --strategy immediate
