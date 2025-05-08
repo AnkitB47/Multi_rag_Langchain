@@ -35,7 +35,7 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: 🔐 Authenticate with Fly.io
-        run: flyctl auth token "${{ secrets.FLY_API_TOKEN }}"
+        run: echo "${{ secrets.FLY_API_TOKEN }}" | flyctl auth login --access-token
 
       - name: 🚀 Deploy to Fly.io (force full build)
         run: flyctl deploy --remote-only --dockerfile ./Dockerfile -a multi-ai-chatbot --strategy immediate
