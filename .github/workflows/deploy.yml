@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-
+  workflow_dispatch:  
 jobs:
   build-test-deploy:
     name: 🔧 Build, Test, and Deploy
@@ -43,4 +43,3 @@ jobs:
       
       - name: 🚀 Deploy to Fly.io
         run: flyctl deploy --remote-only --dockerfile ./Dockerfile -a multi-ai-chatbot
-      
