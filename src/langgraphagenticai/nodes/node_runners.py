@@ -3,25 +3,29 @@ from langgraphagenticai.tools.image_tool import query_image
 from langgraphagenticai.tools.search_tool import query_search
 from langgraphagenticai.tools.translate_tool import translate_text
 
-def run_query_search(state):
-    response = query_search(state.input)
-    return {**state.dict(), "search_result": response}
+def run_query_search(state: dict):
+    response = query_search(state["input"])
+    return {**state, "search_result": response}
 
-def run_query_pdf(state):
-    if state.pdf_path:
-        pdf_response = query_pdf(state.input, state.pdf_path)
-        return {**state.dict(), "pdf_result": pdf_response}
-    return state.dict()
+def run_query_pdf(state: dict):
+    if state.get("pdf_path"):
+        pdf_response = query_pdf(state["input"], state["pdf_path"])
+        return {**state, "pdf_result": pdf_response}
+    return state
 
-def run_query_image(state):
-    if state.image_path:
-        img_response = query_image(state.input, state.image_path)
-        return {**state.dict(), "image_result": img_response}
-    return state.dict()
+def run_query_image(state: dict):
+    if state.get("image_path"):
+        img_response = query_image(state["input"], state["image_path"])
+        return {**state, "image_result": img_response}
+    return state
 
-def run_translation(state):
-    base_response = state.pdf_result or state.image_result or state.search_result
-    if state.lang != "en":
-        translated = translate_text(base_response, state.lang)
-        return {**state.dict(), "final_output": translated}
-    return {**state.dict(), "final_output": base_response}
+def run_translation(state: dict):
+    base_response = (
+        state.get("pdf_result")
+        or state.get("image_result")
+        or state.get("search_result")
+    )
+    if state.get("lang") and state["lang"] != "en":
+        translated = translate_text(base_response, state["lang"])
+        return {**state, "final_output": translated}
+    return {**state, "final_output": base_response}
