@@ -1,17 +1,33 @@
+# Core App
 streamlit
 python-dotenv
-langchain
-langchain-community
-langchain-core
-langgraph
-arxiv
-pydantic
+aiohttp
 tiktoken
-PyMuPDF
-pinecone
+pydantic>=2.6.4
+
+# LangChain ecosystem (split modules post v0.1)
+langchain>=0.1.16
+langchain-core>=0.1.40
+langchain-community>=0.0.33
+langchain-pinecone>=0.0.6
+
+# LangGraph orchestration
+langgraph>=0.0.40
+
+# Vector Store + Embeddings
+pinecone>=4.0.0
 sentence-transformers
-openai
-google-generativeai
+
+# LLM Providers
+openai>=1.14.3
+google-generativeai>=0.4.1
+
+# Tools
+arxiv
 duckduckgo-search
 yfinance
-aiohttp
+PyMuPDF
+
+# Testing & Linting (Optional for CI/CD)
+pytest
+flake8
