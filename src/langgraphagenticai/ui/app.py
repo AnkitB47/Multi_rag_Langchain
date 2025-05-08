@@ -3,9 +3,9 @@ from langgraphagenticai.graph.chatbot_graph import create_graph
 
 graph = create_graph()
 
-st.title("🧠 Agentic Multi-RAG Chatbot")
-query = st.text_input("💬 Ask a question")
-lang = st.selectbox("🌍 Language", ["en", "de", "hi", "fr"])
+st.title("🤖 Agentic Multi-RAG Chatbot")
+query = st.text_input("💬 Ask your question")
+lang = st.selectbox("🌍 Response Language", ["en", "de", "hi", "fr"])
 pdf_file = st.file_uploader("📄 Upload a PDF", type=["pdf"])
 image_file = st.file_uploader("🖼️ Upload an Image", type=["png", "jpg"])
 
@@ -26,5 +26,5 @@ if st.button("Ask"):
         "image_path": img_path
     }
 
-    output = graph.invoke(state)
-    st.success(output['final_output'])
+    result = graph.invoke(state)
+    st.success(result['final_output'])
