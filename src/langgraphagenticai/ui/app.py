@@ -5,9 +5,6 @@ from langgraphagenticai.graph.chatbot_graph import create_graph
 # Initialize LangGraph
 graph = create_graph()
 
-# Set Streamlit upload size limit
-st.set_option("server.maxUploadSize", 200)  # MB
-
 # UI Title
 st.title("🤖 Agentic Multi-RAG Chatbot")
 
