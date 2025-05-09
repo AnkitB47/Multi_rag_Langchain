@@ -1,0 +1,29 @@
+app = "multi-ai-chatbot"
+
+primary_region = 'ams'
+
+[experimental]
+  auto_rollback = true
+
+[build]
+  dockerfile = './Dockerfile'
+
+[env]
+  PORT = '8501'
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 8501
+
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
+
+  [[services.ports]]
+    port = 443
+    handlers = ['tls', 'http']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1

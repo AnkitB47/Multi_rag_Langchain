@@ -47,7 +47,6 @@ dmypy.json
 *.bak
 
 # Fly.io
-fly.toml
 .fly/
 
 # Build artifacts

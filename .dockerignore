@@ -37,7 +37,6 @@ notebooks/
 *.log
 
 # Ignore deployment metadata
-fly.toml
 *.md
 
 # Ignore Docker-related junk
