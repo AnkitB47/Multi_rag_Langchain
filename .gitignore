@@ -66,7 +66,7 @@ yarn-debug.log
 yarn-error.log
 
 # Editor backups
-*~
+
 *.swp
 *.swo
 
@@ -78,3 +78,7 @@ logs/
 lancedb/
 *.lance
 *.parquet
+
+# Allow .streamlit
+!.streamlit/
+!.streamlit/config.toml
