@@ -18,6 +18,7 @@ langgraph>=0.0.40
 pinecone>=4.0.0
 openai>=1.14.3
 langchain-openai>=0.1.6  # Required for OpenAIEmbeddings
+google-generativeai>=0.4.1
 
 # Tools
 PyMuPDF
