@@ -30,8 +30,6 @@ notebooks/
 
 # Ignore CI/CD files not needed in container
 .github/
-*.yml
-.*
 
 # Ignore OS-specific files
 *.swp
