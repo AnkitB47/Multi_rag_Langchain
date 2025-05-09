@@ -26,7 +26,6 @@ notebooks/
 
 # Ignore secrets and environment files
 .env
-.env.*
 
 # Ignore CI/CD files not needed in container
 .github/
@@ -43,4 +42,5 @@ fly.toml
 
 # Ignore Docker-related junk
 docker-compose.yml
-Dockerfile.*
+!.streamlit/
+!.streamlit/config.toml

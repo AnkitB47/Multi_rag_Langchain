@@ -6,7 +6,6 @@ __pycache__/
 *.pkl
 *.egg-info/
 *.egg
-*.log
 
 # Jupyter Notebooks
 .ipynb_checkpoints/
@@ -28,7 +27,6 @@ Thumbs.db
 
 # Environment files
 .env
-.env.*
 
 # Pytest / Test output
 htmlcov/
@@ -47,7 +45,6 @@ dmypy.json
 *.pid
 *.tar
 *.bak
-docker-compose.override.yml
 
 # Fly.io
 fly.toml
@@ -59,14 +56,14 @@ dist/
 *.manifest
 *.spec
 
-# Node stuff (if you ever use frontend)
+# Node stuff (if used)
 node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
 
 # Editor backups
-
+*~
 *.swp
 *.swo
 
@@ -79,6 +76,6 @@ lancedb/
 *.lance
 *.parquet
 
-# Allow .streamlit
+# ✅ Explicit allow for .streamlit/config.toml
 !.streamlit/
 !.streamlit/config.toml
