@@ -2,12 +2,13 @@
 
 import os
 import logging
+import hashlib
 from pinecone import Pinecone, ServerlessSpec
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from langgraphagenticai.utils.pdf_utils import load_and_split_pdf
 
-# Setup basic logging
+# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -17,19 +18,18 @@ PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 PINECONE_REGION = os.getenv("PINECONE_REGION")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Load OpenAI embedding model (1536-dim)
+# OpenAI Embedding Model (1536-dim)
 embedding_model = OpenAIEmbeddings(
     model="text-embedding-3-small",
     api_key=OPENAI_API_KEY
 )
 
-# Initialize Pinecone client
+# Initialize Pinecone
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
 # Ensure Pinecone index exists
-existing_indexes = pc.list_indexes().names()
-if PINECONE_INDEX_NAME not in existing_indexes:
-    logger.info(f"Creating Pinecone index '{PINECONE_INDEX_NAME}' with 1536 dims.")
+if PINECONE_INDEX_NAME not in pc.list_indexes().names():
+    logger.info(f"Creating Pinecone index '{PINECONE_INDEX_NAME}'...")
     pc.create_index(
         name=PINECONE_INDEX_NAME,
         dimension=1536,
@@ -37,39 +37,48 @@ if PINECONE_INDEX_NAME not in existing_indexes:
         spec=ServerlessSpec(cloud="aws", region=PINECONE_REGION)
     )
 else:
-    logger.info(f"Using existing Pinecone index '{PINECONE_INDEX_NAME}'.")
+    logger.info(f"Using existing index '{PINECONE_INDEX_NAME}'")
 
-# Get index reference
+# Index object
 index = pc.Index(PINECONE_INDEX_NAME)
+
+def hash_file_name(filename: str) -> str:
+    """Hash filename to create namespace"""
+    return hashlib.sha256(filename.encode()).hexdigest()
 
 def get_vectordb(pdf_path: str):
     """
-    Load PDF, embed with OpenAI embeddings (1536-dim), and upsert to Pinecone.
+    Load and cache embedded vectors per PDF using hashed namespace.
+    Avoids re-embedding same document.
     """
-    logger.info(f"Loading and splitting PDF: {pdf_path}")
-    docs = load_and_split_pdf(pdf_path)
+    namespace = f"pdf-{hash_file_name(os.path.basename(pdf_path))}"
+    logger.info(f"Using namespace: {namespace}")
 
-    logger.info(f"Generating {len(docs)} embeddings...")
-    vectors = [
-        {
-            "id": f"doc-{i}",
-            "values": embedding_model.embed_query(doc.page_content),
-            "metadata": {"text": doc.page_content}
-        }
-        for i, doc in enumerate(docs)
-    ]
-
-    try:
-        logger.info(f"Upserting {len(vectors)} vectors to Pinecone...")
-        index.upsert(vectors=vectors, namespace="default")
-        logger.info("Upsert successful.")
-    except Exception as e:
-        logger.error(f"Upsert failed: {e}")
-        raise e
+    # Check if namespace already has vectors
+    stats = index.describe_index_stats()
+    if namespace in stats.get("namespaces", {}):
+        logger.info(f"Vectors already exist for {namespace}, skipping upsert.")
+    else:
+        logger.info(f"Embedding and uploading new PDF: {pdf_path}")
+        docs = load_and_split_pdf(pdf_path)
+        vectors = [
+            {
+                "id": f"doc-{i}",
+                "values": embedding_model.embed_query(doc.page_content),
+                "metadata": {"text": doc.page_content}
+            }
+            for i, doc in enumerate(docs)
+        ]
+        try:
+            index.upsert(vectors=vectors, namespace=namespace)
+            logger.info("PDF vectors successfully upserted.")
+        except Exception as e:
+            logger.error(f"Upsert failed: {e}")
+            raise
 
     return PineconeVectorStore(
         index=index,
         embedding=embedding_model,
-        namespace="default",
+        namespace=namespace,
         text_key="text"
     )

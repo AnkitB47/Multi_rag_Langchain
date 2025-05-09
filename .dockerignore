@@ -39,7 +39,6 @@ notebooks/
 *.log
 
 # Ignore Streamlit and caching data
-.streamlit/
 *.sqlite3
 
 # Ignore deployment metadata
