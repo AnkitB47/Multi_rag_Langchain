@@ -1,23 +1,35 @@
 import streamlit as st
+import tempfile
 from langgraphagenticai.graph.chatbot_graph import create_graph
 
+# Initialize LangGraph
 graph = create_graph()
 
+# Set Streamlit upload size limit
+st.set_option("server.maxUploadSize", 200)  # MB
+
+# UI Title
 st.title("🤖 Agentic Multi-RAG Chatbot")
+
+# Input fields
 query = st.text_input("💬 Ask your question")
 lang = st.selectbox("🌍 Response Language", ["en", "de", "hi", "fr"])
 pdf_file = st.file_uploader("📄 Upload a PDF", type=["pdf"])
 image_file = st.file_uploader("🖼️ Upload an Image", type=["png", "jpg", "jpeg"])
 
+# Handle input
 if st.button("Ask"):
     pdf_path, img_path = None, None
+
     if pdf_file:
-        pdf_path = f"/tmp/{pdf_file.name}"
-        with open(pdf_path, "wb") as f: f.write(pdf_file.read())
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+            tmp_pdf.write(pdf_file.read())
+            pdf_path = tmp_pdf.name
 
     if image_file:
-        img_path = f"/tmp/{image_file.name}"
-        with open(img_path, "wb") as f: f.write(image_file.read())
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
+            tmp_img.write(image_file.read())
+            img_path = tmp_img.name
 
     state = {
         "input": query,
@@ -26,5 +38,8 @@ if st.button("Ask"):
         "image_path": img_path
     }
 
-    result = graph.invoke(state)
-    st.success(result['final_output'])
+    try:
+        result = graph.invoke(state)
+        st.success(result.get("final_output", "✅ Done, but no output found."))
+    except Exception as e:
+        st.error(f"❌ An error occurred: {e}")
