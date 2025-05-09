@@ -16,4 +16,4 @@ def query_image(query: str, image_path: str):
         return response.text
     except Exception as e:
         logger.warning(f"Image query failed. Falling back to web: {e}")
-        return query_search(query)
+        return "❌ Failed to process image. Please try again."

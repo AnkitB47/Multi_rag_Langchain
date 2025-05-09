@@ -12,10 +12,10 @@ def create_graph():
     builder.add_node("query_search", run_query_search)
     builder.add_node("translate", run_translation)
 
-    builder.set_entry_point("query_search")
-    builder.add_edge("query_search", "query_pdf")
+    builder.set_entry_point("query_pdf")
     builder.add_edge("query_pdf", "query_image")
-    builder.add_edge("query_image", "translate")
+    builder.add_edge("query_image", "query_search")
+    builder.add_edge("query_search", "translate")
     builder.set_finish_point("translate")
 
     return builder.compile()

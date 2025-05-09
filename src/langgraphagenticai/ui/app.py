@@ -2,31 +2,26 @@ import streamlit as st
 import tempfile
 from langgraphagenticai.graph.chatbot_graph import create_graph
 
-# Initialize LangGraph
 graph = create_graph()
 
-# UI Title
 st.title("🤖 Agentic Multi-RAG Chatbot")
-
-# Input fields
 query = st.text_input("💬 Ask your question")
 lang = st.selectbox("🌍 Response Language", ["en", "de", "hi", "fr"])
 pdf_file = st.file_uploader("📄 Upload a PDF", type=["pdf"])
 image_file = st.file_uploader("🖼️ Upload an Image", type=["png", "jpg", "jpeg"])
 
-# Handle input
 if st.button("Ask"):
     pdf_path, img_path = None, None
 
     if pdf_file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-            tmp_pdf.write(pdf_file.read())
-            pdf_path = tmp_pdf.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(pdf_file.read())
+            pdf_path = tmp.name
 
     if image_file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
-            tmp_img.write(image_file.read())
-            img_path = tmp_img.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+            tmp.write(image_file.read())
+            img_path = tmp.name
 
     state = {
         "input": query,
