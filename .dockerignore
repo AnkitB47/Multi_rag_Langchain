@@ -39,10 +39,6 @@ notebooks/
 *.tmp
 *.log
 
-# Ignore Streamlit and caching data
-.streamlit/*.sqlite3
-.streamlit/*.log
-
 # Ignore deployment metadata
 fly.toml
 *.md
