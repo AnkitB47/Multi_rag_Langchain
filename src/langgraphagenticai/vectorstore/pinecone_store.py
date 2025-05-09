@@ -13,7 +13,8 @@ PINECONE_REGION = os.getenv("PINECONE_REGION")
 
 # Define embedding model (2048 dimensions)
 embedding_model = HuggingFaceEmbeddings(
-    model_name="nomic-ai/nomic-bert-2048"
+    model_name="nomic-ai/nomic-bert-2048",
+    model_kwargs={"trust_remote_code": True}
 )
 
 # Initialize Pinecone client
