@@ -6,15 +6,13 @@ from langgraphagenticai.tools.translate_tool import translate_text
 def run_query_pdf(state: dict):
     if state.get("pdf_path"):
         response = query_pdf(state["input"], state["pdf_path"])
-        if "❌" not in response:
-            return {**state, "pdf_result": response}
+        return {**state, "pdf_result": response}
     return state
 
 def run_query_image(state: dict):
     if state.get("image_path"):
         response = query_image(state["input"], state["image_path"])
-        if "❌" not in response:
-            return {**state, "image_result": response}
+        return {**state, "image_result": response}
     return state
 
 def run_query_search(state: dict):
@@ -22,10 +20,8 @@ def run_query_search(state: dict):
     return {**state, "search_result": response}
 
 def run_translation(state: dict):
-    base_response = state.get("pdf_result") or state.get("image_result") or state.get("search_result")
-    if not base_response:
-        return {**state, "final_output": "❌ No relevant result found from any source."}
+    base = state.get("pdf_result") or state.get("image_result") or state.get("search_result")
     if state.get("lang") != "en":
-        translated = translate_text(base_response, state["lang"])
+        translated = translate_text(base, state["lang"])
         return {**state, "final_output": translated}
-    return {**state, "final_output": base_response}
+    return {**state, "final_output": base}

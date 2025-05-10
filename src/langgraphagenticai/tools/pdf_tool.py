@@ -5,13 +5,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def query_pdf(query, pdf_path: str):
+def query_pdf(query: str, pdf_path: str) -> str:
     try:
         vectordb = get_vectordb(pdf_path)
         llm = load_openai()
         retriever = vectordb.as_retriever()
-        chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
-        return chain.run(query)
+        qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+        return qa_chain.run(query)
     except Exception as e:
-        logger.exception(f"PDF query failed: {e}")
+        logger.exception(f"PDF processing failed: {e}")
         return "❌ Failed to process PDF. Please try again."

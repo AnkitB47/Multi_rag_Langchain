@@ -1,10 +1,9 @@
 from langgraphagenticai.LLMS.load_models import load_gemini_vision
-from langgraphagenticai.tools.search_tool import query_search
 import logging
 
 logger = logging.getLogger(__name__)
 
-def query_image(query: str, image_path: str):
+def query_image(query: str, image_path: str) -> str:
     try:
         model = load_gemini_vision()
         with open(image_path, "rb") as f:
@@ -15,5 +14,5 @@ def query_image(query: str, image_path: str):
         ])
         return response.text
     except Exception as e:
-        logger.warning(f"Image query failed. Falling back to web: {e}")
+        logger.warning(f"Image processing failed: {e}")
         return "❌ Failed to process image. Please try again."

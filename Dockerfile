@@ -1,26 +1,33 @@
 # ---- Base Image ----
 FROM python:3.10-slim
 
-# ---- Set Working Directory ----
+# ---- Working Directory ----
 WORKDIR /app
     
-# ---- Install System Dependencies ----
+# ---- System Dependencies ----
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc git curl && \
     rm -rf /var/lib/apt/lists/*
     
-# ---- Copy Code & Install ----
-COPY requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
+# ---- Python Dependencies ----
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
     
-COPY .streamlit /app/.streamlit
-
+# ---- App Code ----
 COPY ./src /app/src
+COPY .streamlit /app/.streamlit
     
+# ---- Environment ----
 ENV PYTHONPATH=/app/src
 ENV TMPDIR=/tmp
     
-# ---- Expose Port & Start ----
+# ---- Expose Streamlit Port ----
 EXPOSE 8501
+    
+# ---- Create /tmp and set permissions ----
+RUN mkdir -p /tmp && chmod 777 /tmp
+    
+# ---- Launch ----
 CMD ["streamlit", "run", "src/langgraphagenticai/ui/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
     

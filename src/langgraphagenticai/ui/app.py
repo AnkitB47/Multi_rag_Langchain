@@ -3,8 +3,8 @@ import tempfile
 from langgraphagenticai.graph.chatbot_graph import create_graph
 
 graph = create_graph()
-
 st.title("🤖 Agentic Multi-RAG Chatbot")
+
 query = st.text_input("💬 Ask your question")
 lang = st.selectbox("🌍 Response Language", ["en", "de", "hi", "fr"])
 pdf_file = st.file_uploader("📄 Upload a PDF", type=["pdf"])
@@ -14,14 +14,14 @@ if st.button("Ask"):
     pdf_path, img_path = None, None
 
     if pdf_file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(pdf_file.read())
-            pdf_path = tmp.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+            tmp_pdf.write(pdf_file.read())
+            pdf_path = tmp_pdf.name
 
     if image_file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-            tmp.write(image_file.read())
-            img_path = tmp.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
+            tmp_img.write(image_file.read())
+            img_path = tmp_img.name
 
     state = {
         "input": query,
@@ -32,6 +32,6 @@ if st.button("Ask"):
 
     try:
         result = graph.invoke(state)
-        st.success(result.get("final_output", "✅ Done, but no output found."))
+        st.success(result.get("final_output", "✅ Query completed."))
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")

@@ -1,14 +1,16 @@
 import os
-from langchain_community.chat_models import ChatOpenAI
-from google.generativeai import GenerativeModel, configure
-
-configure(api_key=os.getenv("GOOGLE_API_KEY"))
+from langchain_openai import ChatOpenAI
+from google.generativeai import GenerativeModel
 
 def load_openai():
-    return ChatOpenAI(temperature=0.5, model="gpt-4o", openai_api_key=os.getenv("OPENAI_API_KEY"))
-
-def load_gemini_vision():
-    return GenerativeModel(model_name="models/gemini-pro-vision")
+    return ChatOpenAI(
+        model="gpt-4o",
+        temperature=0.3,
+        api_key=os.getenv("OPENAI_API_KEY")
+    )
 
 def load_gemini():
-    return GenerativeModel(model_name="models/gemini-pro")
+    return GenerativeModel("gemini-pro")
+
+def load_gemini_vision():
+    return GenerativeModel("gemini-pro-vision")

@@ -1,5 +1,5 @@
-from langgraphagenticai.ui.app import *
+from langgraphagenticai.graph.chatbot_graph import create_graph
 
 if __name__ == "__main__":
-    import streamlit.web.bootstrap
-    streamlit.web.bootstrap.run("src/langgraphagenticai/ui/streamlit_app.py", "", [], {})
+    graph = create_graph()
+    print("🧠 LangGraph pipeline created successfully.")

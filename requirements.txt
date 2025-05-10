@@ -36,3 +36,11 @@ einops>=0.7.0
 # Testing & Linting
 pytest
 flake8
+
+phidata
+groq
+fastapi
+uvicorn
+sqlalchemy
+pgvector
+pypdf

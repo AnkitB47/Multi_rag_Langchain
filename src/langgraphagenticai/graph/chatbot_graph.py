@@ -6,7 +6,6 @@ from langgraphagenticai.nodes.node_runners import (
 
 def create_graph():
     builder = StateGraph(GraphState)
-
     builder.add_node("query_pdf", run_query_pdf)
     builder.add_node("query_image", run_query_image)
     builder.add_node("query_search", run_query_search)
