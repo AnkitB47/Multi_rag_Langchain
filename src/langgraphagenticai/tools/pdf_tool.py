@@ -1,5 +1,5 @@
 # src/langgraphagenticai/tools/pdf_tool.py
-
+import os
 import logging
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
@@ -52,7 +52,7 @@ def query_pdf(query: str, pdf_path: str) -> str:
         if not result.get('source_documents'):
             return "I couldn't find relevant content in the PDF. Try asking about specific sections."
             
-        return f"From the PDF: {result['result']}\n\nSources: {[d.metadata for d in result['source_documents']}"
+        return f"From the PDF: {result['result']}\n\nSources: {[d.metadata for d in result['source_documents']]}"
         
     except Exception as e:
         return f"Processing error: {str(e)}"
