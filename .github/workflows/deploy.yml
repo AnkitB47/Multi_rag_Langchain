@@ -37,8 +37,8 @@ jobs:
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: 🔐 Authenticate with Fly.io
-        run: flyctl auth token "${{ secrets.FLY_API_TOKEN }}"
-
+        run: flyctl auth login --access-token "${{ secrets.FLY_API_TOKEN }}"
+        
       - name: 🚀 Deploy to Fly.io with Retry
         run: |
           retry=3
