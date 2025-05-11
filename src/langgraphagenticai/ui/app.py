@@ -33,9 +33,12 @@ if st.button("Run"):
             "image_path": image_path,
         }
         result = graph.invoke(state)
+        st.write("📄 PDF Path:", pdf_path)
+        st.write("🖼 Image Path:", image_path)
+        st.info(f"📄 PDF saved to: {pdf_path}")
         st.success(result.get("final_output", "✅ Done."))
     except Exception as e:
         st.error(f"❌ {e}")
 
-    st.write("📄 PDF Path:", pdf_path)
-    st.write("🖼 Image Path:", image_path)
+
+
