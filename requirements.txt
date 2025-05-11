@@ -1,46 +1,51 @@
-# Core App
+# --- Core App ---
 streamlit
 python-dotenv
 aiohttp
 tiktoken
 pydantic>=2.6.4
 
-# LangChain ecosystem
+# --- LangChain & Ecosystem ---
 langchain>=0.1.16
 langchain-core>=0.1.40
 langchain-community>=0.0.33
 langchain-pinecone>=0.0.6
+langchain-openai>=0.1.6
 
-# LangGraph orchestration
+# --- LangGraph Orchestration ---
 langgraph>=0.0.40
 
-# Vector Store + Embeddings
-pinecone>=4.0.0
+# --- Embeddings & Vector DB ---
+pinecone-client>=3.0.0
 openai>=1.14.3
-langchain-openai>=0.1.6  # Required for OpenAIEmbeddings
 google-generativeai>=0.4.1
+pgvector
+sqlalchemy
 
-# Tools
-PyMuPDF
-arxiv
-duckduckgo-search
-yfinance
-
-# Optional - for HuggingFace fallback or testing (not used with OpenAIEmbeddings)
+# --- Optional Transformers (fallback embedding & tools) ---
 sentence-transformers
 transformers>=4.41.0
 torch>=2.2.2
 accelerate
 einops>=0.7.0
 
-# Testing & Linting
-pytest
-flake8
+# --- File Parsing & Tools ---
+PyMuPDF
+arxiv
+pypdf
+duckduckgo-search
+yfinance
 
+# --- Agent Frameworks ---
 phidata
 groq
+agno
+phi
+
+# --- Server / API ---
 fastapi
 uvicorn
-sqlalchemy
-pgvector
-pypdf
+
+# --- Dev, Test, Lint ---
+pytest
+flake8

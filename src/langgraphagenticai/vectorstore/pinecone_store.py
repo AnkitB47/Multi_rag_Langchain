@@ -1,51 +1,66 @@
+# src/langgraphagenticai/vectorstore/pinecone_store.py
+
 import os
 import logging
-from pinecone import Pinecone, ServerlessSpec
-from langchain_openai import OpenAIEmbeddings
+from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
 from langgraphagenticai.utils.pdf_utils import load_and_split_pdf
 
+# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load secrets from env
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 PINECONE_REGION = os.getenv("PINECONE_REGION")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-embedding_model = OpenAIEmbeddings(
-    model="text-embedding-3-small",
-    api_key=OPENAI_API_KEY
-)
-
+# Initialize Pinecone
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
+# Check if the index exists
 if PINECONE_INDEX_NAME not in pc.list_indexes().names():
-    logger.info(f"Creating Pinecone index '{PINECONE_INDEX_NAME}'...")
-    pc.create_index(
+    logger.info(f"Creating Pinecone index '{PINECONE_INDEX_NAME}' with integrated model.")
+    pc.create_index_for_model(
         name=PINECONE_INDEX_NAME,
-        dimension=1536,
-        metric="cosine",
-        spec=ServerlessSpec(cloud="aws", region=PINECONE_REGION)
+        cloud="aws",
+        region=PINECONE_REGION,
+        embed={
+            "model": "llama-text-embed-v2",
+            "field_map": {"text": "text"}
+        }
     )
+else:
+    logger.info(f"Using existing Pinecone index '{PINECONE_INDEX_NAME}'.")
 
+# Get reference to index
 index = pc.Index(PINECONE_INDEX_NAME)
 
 def get_vectordb(pdf_path: str):
-    docs = load_and_split_pdf(pdf_path)
-    vectors = [
-        {
-            "id": f"doc-{i}",
-            "values": embedding_model.embed_query(doc.page_content),
-            "metadata": {"text": doc.page_content}
-        }
-        for i, doc in enumerate(docs)
-    ]
-    index.upsert(vectors=vectors, namespace="default")
+    """
+    Loads a PDF, extracts text, and inserts into Pinecone using built-in embedding model.
+    """
+    try:
+        docs = load_and_split_pdf(pdf_path)
+        logger.info(f"Embedding and upserting {len(docs)} PDF chunks.")
 
-    return PineconeVectorStore(
-        index=index,
-        embedding=embedding_model,
-        namespace="default",
-        text_key="text"
-    )
+        # Prepare documents without manual embedding
+        records = [
+            {
+                "id": f"doc-{i}",
+                "metadata": {"text": doc.page_content}
+            }
+            for i, doc in enumerate(docs)
+        ]
+
+        index.upsert(records=records, namespace="default")
+        logger.info("Upsert successful.")
+
+        return PineconeVectorStore(
+            index=index,
+            namespace="default",
+            text_key="text"
+        )
+    except Exception as e:
+        logger.error(f"Vector DB generation failed: {e}")
+        raise e
