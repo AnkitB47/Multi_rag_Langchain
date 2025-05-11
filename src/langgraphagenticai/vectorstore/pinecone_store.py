@@ -25,7 +25,7 @@ if PINECONE_INDEX_NAME not in pc.list_indexes().names():
         embed={
             "model": "llama-text-embed-v2",
             "field_map": {
-                "text": "text"
+                "text": "chunk_text"
             }
         }
     )
@@ -35,13 +35,13 @@ index = pc.Index(PINECONE_INDEX_NAME)
 
 def get_vectordb(pdf_path: str):
     docs = load_and_split_pdf(pdf_path)
-    records = [{"id": f"doc-{i}", "text": doc.page_content} for i, doc in enumerate(docs)]
+    records = [{"_id": f"doc-{i}", "chunk_text": doc.page_content} for i, doc in enumerate(docs)]
     
-    index.upsert(records=records, namespace="default")
+    index.upsert_records(namespace="default", records=records)
 
     return PineconeVectorStore(
         index=index,
         embedding=None,  # Built-in embedding
         namespace="default",
-        text_key="text"
+        text_key="chunk_text"
     )
