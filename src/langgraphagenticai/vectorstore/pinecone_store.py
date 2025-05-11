@@ -16,7 +16,6 @@ PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 PINECONE_REGION = os.getenv("PINECONE_REGION")
 EMBEDDING_MODEL = "llama-text-embed-v2"
-DIMENSION = 2048  # Must match your index dimension
 
 class PineconeManager:
     def __init__(self):
@@ -24,57 +23,34 @@ class PineconeManager:
         self.index = self._initialize_index()
 
     def _initialize_index(self):
-        """Initialize or connect to Pinecone index with proper configuration"""
+        """Initialize or connect to Pinecone index"""
         try:
             if PINECONE_INDEX_NAME not in self.pc.list_indexes().names():
-                logger.info(f"Creating Pinecone index '{PINECONE_INDEX_NAME}'...")
+                raise ValueError(f"Index {PINECONE_INDEX_NAME} does not exist. Please create it first in Pinecone console with dimension 2048.")
+            
+            index = self.pc.Index(PINECONE_INDEX_NAME)
+            
+            # Verify index description
+            desc = self.pc.describe_index(PINECONE_INDEX_NAME)
+            if not desc.status['ready']:
+                raise ValueError("Index is not ready")
                 
-                self.pc.create_index(
-                    name=PINECONE_INDEX_NAME,
-                    dimension=DIMENSION,
-                    metric="cosine",
-                    spec=ServerlessSpec(
-                        cloud="aws",
-                        region=PINECONE_REGION
-                    ),
-                    metadata_config={"indexed": ["text"]}
-                )
-                
-                # Wait for index to be ready
-                self._wait_for_index_ready()
-                logger.info("Index created successfully")
-            else:
-                logger.info(f"Using existing index: {PINECONE_INDEX_NAME}")
-                
-            return self.pc.Index(PINECONE_INDEX_NAME)
+            logger.info(f"Using existing index: {PINECONE_INDEX_NAME}")
+            return index
+            
         except Exception as e:
             logger.error(f"Failed to initialize Pinecone index: {e}")
             raise
-
-    def _wait_for_index_ready(self, timeout: int = 300):
-        """Wait for index to be ready"""
-        start_time = time.time()
-        while True:
-            try:
-                desc = self.pc.describe_index(PINECONE_INDEX_NAME)
-                if desc.status['ready']:
-                    return
-                if time.time() - start_time > timeout:
-                    raise TimeoutError("Index creation timed out")
-                time.sleep(5)
-            except Exception as e:
-                logger.warning(f"Waiting for index: {e}")
-                time.sleep(5)
 
     def prepare_documents(self, docs: List[Any]) -> List[Dict[str, Any]]:
         """Prepare documents for Pinecone upsert with built-in embeddings"""
         return [{
             "id": f"doc-{i}",
-            "values": [],  # Empty for built-in embeddings
+            "values": [],  # Empty array for built-in embeddings
             "metadata": {
                 "text": doc.page_content,
                 "source": doc.metadata.get("source", "unknown"),
-                "model": EMBEDDING_MODEL  # Specify the embedding model
+                "model": EMBEDDING_MODEL  # Critical for built-in embeddings
             }
         } for i, doc in enumerate(docs)]
 
@@ -90,12 +66,15 @@ class PineconeManager:
             records = self.prepare_documents(docs)
             
             logger.info(f"📤 Upserting {len(records)} records to Pinecone")
-            response = self.index.upsert(
-                vectors=records,
-                namespace="default"
-            )
             
-            logger.debug(f"Pinecone upsert response: {response}")
+            # Upsert with batch processing
+            batch_size = 100  # Adjust based on your needs
+            for i in range(0, len(records), batch_size):
+                batch = records[i:i + batch_size]
+                self.index.upsert(
+                    vectors=batch,
+                    namespace="default"
+                )
             
             # Initialize vector store with proper configuration
             return PineconeVectorStore(

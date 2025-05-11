@@ -13,7 +13,10 @@ class PDFQueryProcessor:
         self.llm = load_openai()
         self.retriever_kwargs = {
             "search_type": "similarity",
-            "search_kwargs": {"k": 4, "filter": {"model": "llama-text-embed-v2"}}
+            "search_kwargs": {
+                "k": 4,
+                "filter": {"model": "llama-text-embed-v2"}
+            }
         }
 
     def process_query(self, query: str, pdf_path: str) -> Optional[str]:
