@@ -1,27 +1,31 @@
-import fitz  # PyMuPDF
+# src/langgraphagenticai/utils/pdf_utils.py
+
 from langchain.document_loaders import PyMuPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+import logging
 
-def is_valid_pdf(path: str) -> bool:
-    try:
-        with fitz.open(path) as doc:
-            return doc.page_count > 0
-    except Exception:
-        return False
+logger = logging.getLogger(__name__)
 
 def load_and_split_pdf(path: str):
-    if not is_valid_pdf(path):
-        raise ValueError("Invalid or corrupted PDF file.")
+    """
+    Loads a PDF file and splits content into chunks for vector indexing.
+    """
+    try:
+        loader = PyMuPDFLoader(path)
+        documents = loader.load()
 
-    loader = PyMuPDFLoader(path)
-    documents = loader.load()
+        if not documents:
+            raise ValueError("PDF appears to be empty or unreadable.")
 
-    if not documents:
-        raise ValueError("No documents found in PDF.")
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+        chunks = text_splitter.split_documents(documents)
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    chunks = text_splitter.split_documents(documents)
+        if not chunks:
+            raise ValueError("PDF text split returned no chunks.")
 
-    if not chunks:
-        raise ValueError("No text chunks found after splitting PDF.")
-    return chunks
+        logger.info(f"✅ Loaded and split PDF: {len(chunks)} chunks created.")
+        return chunks
+
+    except Exception as e:
+        logger.exception(f"❌ Error loading/splitting PDF: {e}")
+        raise

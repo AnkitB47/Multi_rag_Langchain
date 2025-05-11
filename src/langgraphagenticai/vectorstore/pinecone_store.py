@@ -7,15 +7,12 @@ from langgraphagenticai.utils.pdf_utils import load_and_split_pdf
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Environment variables
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 PINECONE_REGION = os.getenv("PINECONE_REGION")
 
-# Initialize Pinecone client
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
-# Check if index exists; if not, create it with integrated embedding
 if PINECONE_INDEX_NAME not in pc.list_indexes().names():
     logger.info(f"Creating Pinecone index '{PINECONE_INDEX_NAME}' with integrated embedding...")
     pc.create_index_for_model(
@@ -25,23 +22,32 @@ if PINECONE_INDEX_NAME not in pc.list_indexes().names():
         embed={
             "model": "llama-text-embed-v2",
             "field_map": {
-                "text": "chunk_text"
+                "text": "text"
             }
         }
     )
 
-# Connect to the index
 index = pc.Index(PINECONE_INDEX_NAME)
 
 def get_vectordb(pdf_path: str):
     docs = load_and_split_pdf(pdf_path)
-    records = [{"_id": f"doc-{i}", "chunk_text": doc.page_content} for i, doc in enumerate(docs)]
-    
-    index.upsert_records(namespace="default", records=records)
+
+    records = [
+        {
+            "id": f"doc-{i}",
+            "text": doc.page_content  # ✅ Required top-level field
+        }
+        for i, doc in enumerate(docs)
+    ]
+
+    if not records:
+        raise ValueError("No valid text records to upsert to Pinecone.")
+
+    index.upsert(records=records, namespace="default")
 
     return PineconeVectorStore(
         index=index,
-        embedding=None,  # Built-in embedding
+        embedding=None,  
         namespace="default",
-        text_key="chunk_text"
+        text_key="text"
     )
