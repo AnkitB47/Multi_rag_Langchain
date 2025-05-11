@@ -22,38 +22,37 @@ QA_PROMPT = PromptTemplate(
 )
 
 def query_pdf(query: str, pdf_path: str) -> str:
-    """Query PDF with proper error handling and configuration"""
     try:
-        logger.info(f"Initializing PDF query for: {pdf_path}")
+        # First confirm PDF is processed
+        if not os.path.exists(pdf_path):
+            return "Error: PDF not found"
+            
+        # Explicit loading message
+        print(f"Processing PDF: {pdf_path}")  # Log for debugging
         
-        # Initialize vector store
         vectordb = get_vectordb(pdf_path)
         
-        # Configure retriever with proper settings
-        retriever = vectordb.as_retriever(
-            search_type="similarity",
-            search_kwargs={
-                "k": 4,
-                "filter": {
-                    "embedding_model": "llama-text-embed-v2",
-                    "model": "llama-text-embed-v2"
-                }
-            }
-        )
-        
-        # Create QA chain with proper configuration
+        # Test retrieval
+        test_docs = vectordb.similarity_search("attention", k=1)
+        if not test_docs:
+            return "Error: PDF content not loaded properly"
+            
+        # Proceed with actual query
+        retriever = vectordb.as_retriever(search_kwargs={"k": 4})
         qa_chain = RetrievalQA.from_chain_type(
             llm=load_openai(),
             chain_type="stuff",
             retriever=retriever,
-            return_source_documents=True,
-            chain_type_kwargs={"prompt": QA_PROMPT}
+            return_source_documents=True  # Critical for verification
         )
         
-        # Execute query
         result = qa_chain({"query": query})
-        return result.get("result", "No answer found")
+        
+        # Add source verification
+        if not result.get('source_documents'):
+            return "I couldn't find relevant content in the PDF. Try asking about specific sections."
+            
+        return f"From the PDF: {result['result']}\n\nSources: {[d.metadata for d in result['source_documents']}"
         
     except Exception as e:
-        logger.exception(f"PDF query failed: {e}")
-        return f"Error processing PDF: {str(e)}"
+        return f"Processing error: {str(e)}"
