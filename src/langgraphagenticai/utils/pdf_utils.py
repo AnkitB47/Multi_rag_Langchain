@@ -1,47 +1,70 @@
 # src/langgraphagenticai/utils/pdf_utils.py
 
-from langchain.document_loaders import PyMuPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from typing import List
+from langchain_community.document_loaders import PyMuPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from typing import List, Dict, Any
 import logging
+import fitz  # PyMuPDF
+import os
 
 logger = logging.getLogger(__name__)
 
 def validate_pdf(path: str) -> bool:
-    """Basic PDF validation"""
+    """Enhanced PDF validation with proper file checking"""
     try:
-        with open(path, 'rb') as f:
-            header = f.read(4)
-            return header == b'%PDF'
-    except Exception:
+        # Check file exists and is readable
+        if not os.path.isfile(path) or not os.access(path, os.R_OK):
+            return False
+            
+        # Check PDF header and try to open
+        with fitz.open(path) as doc:
+            return len(doc) > 0  # Verify it has pages
+    except Exception as e:
+        logger.debug(f"PDF validation failed: {e}")
         return False
 
-def load_and_split_pdf(path: str) -> List:
-    """Load and split PDF with enhanced error handling"""
+def load_and_split_pdf(path: str) -> List[Dict[str, Any]]:
+    """
+    Load and split PDF with enhanced metadata handling
+    Returns list of documents with proper metadata for Pinecone
+    """
     try:
+        logger.info(f"Processing PDF: {path}")
+        
         if not validate_pdf(path):
-            raise ValueError("Invalid PDF file")
+            raise ValueError("Invalid or corrupted PDF file")
             
-        logger.info(f"Loading PDF: {path}")
+        # Load with enhanced metadata
         loader = PyMuPDFLoader(path)
         documents = loader.load()
         
         if not documents:
-            raise ValueError("No content extracted from PDF")
+            raise ValueError("PDF contained no extractable text")
             
         logger.info(f"Loaded {len(documents)} pages")
         
+        # Configure splitter for optimal RAG performance
         splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
+            chunk_size=800,  # Slightly smaller for better embedding quality
+            chunk_overlap=150,
             length_function=len,
-            add_start_index=True
+            add_start_index=True,
+            separators=["\n\n", "\n", " ", ""]  # Better paragraph handling
         )
         
         splits = splitter.split_documents(documents)
+        
+        # Enhance metadata for Pinecone compatibility
+        for doc in splits:
+            doc.metadata.update({
+                "source": os.path.basename(path),
+                "document_type": "pdf",
+                "processing_method": "langchain-pymupdf"
+            })
+        
         logger.info(f"Split into {len(splits)} chunks")
         return splits
         
     except Exception as e:
-        logger.error(f"PDF processing failed: {e}")
+        logger.error(f"PDF processing error: {str(e)}")
         raise RuntimeError(f"Failed to process PDF: {str(e)}")

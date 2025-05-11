@@ -6,41 +6,67 @@ from langgraphagenticai.nodes.node_runners import (
     run_query_pdf, run_query_image, run_query_search, run_translation
 )
 from typing import Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 def create_graph() -> StateGraph:
-    """Create the LangGraph state machine with enhanced error handling"""
+    """Create a robust LangGraph state machine with error handling"""
     
-    # Define the workflow
     builder = StateGraph(GraphState)
     
-    # Add nodes with conditional execution
-    builder.add_node("query_pdf", lambda state: run_query_pdf(state) if state.get("pdf_path") else state)
-    builder.add_node("query_image", lambda state: run_query_image(state) if state.get("image_path") else state)
+    # Add nodes with enhanced error handling
+    builder.add_node("query_pdf", run_query_pdf)
+    builder.add_node("query_image", run_query_image)
     builder.add_node("query_search", run_query_search)
     builder.add_node("translate", run_translation)
 
-    # Set up the workflow
+    # Set conditional edges with fallback logic
+    def decide_pdf_next(state: Dict[str, Any]) -> str:
+        if state.get("pdf_error"):
+            logger.warning("PDF processing failed, skipping to search")
+            return "query_search"
+        return "query_image" if state.get("image_path") else "query_search"
+    
+    def decide_image_next(state: Dict[str, Any]) -> str:
+        if state.get("image_error"):
+            logger.warning("Image processing failed, moving to search")
+        return "query_search"
+    
+    # Configure workflow
     builder.set_entry_point("query_pdf")
-    
-    # Conditional edges
-    builder.add_conditional_edges(
-        "query_pdf",
-        lambda state: "query_image" if state.get("image_path") else "query_search"
-    )
-    builder.add_conditional_edges(
-        "query_image",
-        lambda state: "query_search"
-    )
+    builder.add_conditional_edges("query_pdf", decide_pdf_next)
+    builder.add_conditional_edges("query_image", decide_image_next)
     builder.add_edge("query_search", "translate")
-    
     builder.set_finish_point("translate")
 
     return builder.compile()
 
 def invoke_graph(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Safe invocation wrapper for the graph"""
+    """Robust graph invocation with comprehensive error handling"""
     try:
         graph = create_graph()
-        return graph.invoke(state)
+        result = graph.invoke(state)
+        
+        # Check for any processing errors
+        errors = {
+            k: v for k, v in result.items() 
+            if k.endswith('_error') and v is not None
+        }
+        
+        if errors:
+            logger.warning(f"Completed with errors: {errors}")
+            if "final_output" not in result:
+                result["final_output"] = (
+                    "Processing completed with some errors. "
+                    f"Primary error: {next(iter(errors.values()))}"
+                )
+                
+        return result
+        
     except Exception as e:
-        return {"error": str(e), "final_output": f"❌ Processing failed: {str(e)}"}
+        logger.exception("Graph execution failed")
+        return {
+            "error": str(e),
+            "final_output": "❌ System error occurred during processing. Please try again."
+        }
