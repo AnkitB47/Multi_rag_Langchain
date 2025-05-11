@@ -34,32 +34,14 @@ if PINECONE_INDEX_NAME not in pc.list_indexes().names():
 index = pc.Index(PINECONE_INDEX_NAME)
 
 def get_vectordb(pdf_path: str):
-    """
-    Processes a PDF file, splits its content, and upserts into Pinecone.
-    Returns a PineconeVectorStore for retrieval.
-    """
-    try:
-        # Load and split PDF into chunks
-        docs = load_and_split_pdf(pdf_path)
+    docs = load_and_split_pdf(pdf_path)
+    records = [{"id": f"doc-{i}", "text": doc.page_content} for i, doc in enumerate(docs)]
+    
+    index.upsert(records=records, namespace="default")
 
-        # Prepare records for upsert
-        records = [
-            {"id": f"doc-{i}", "text": doc.page_content}
-            for i, doc in enumerate(docs)
-        ]
-
-        # Upsert records into Pinecone
-        index.upsert(records=records, namespace="default")
-        logger.info("✅ Successfully upserted PDF content into Pinecone.")
-
-        # Return PineconeVectorStore without external embedding
-        return PineconeVectorStore(
-            index=index,
-            embedding=None,
-            namespace="default",
-            text_key="text"
-        )
-
-    except Exception as e:
-        logger.error(f"❌ Error in get_vectordb: {e}")
-        raise
+    return PineconeVectorStore(
+        index=index,
+        embedding=None,  # Built-in embedding
+        namespace="default",
+        text_key="text"
+    )
