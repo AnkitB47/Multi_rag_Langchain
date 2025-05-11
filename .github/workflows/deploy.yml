@@ -3,7 +3,7 @@ name: 🚀 CI/CD - Lint, Test & Deploy to Fly.io
 on:
   push:
     branches: [main]
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   build-test-deploy:
@@ -14,7 +14,7 @@ jobs:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v3
 
-      - name: 🐍 Set up Python
+      - name: 🐍 Set up Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -31,15 +31,27 @@ jobs:
       - name: 🧪 Run Pytest Tests
         run: PYTHONPATH=src pytest src/langgraphagenticai/tests
 
-      - name: ⚙️ Install Fly CLI
-        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: ⚙️ Upgrade Fly CLI (latest stable)
+        run: |
+          curl -L https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: 🔐 Authenticate with Fly.io
-        run: flyctl auth login --access-token "${{ secrets.FLY_API_TOKEN }}"
-      
-      - name: 🚀 Deploy to Fly.io (force full build)
-        run: flyctl deploy --remote-only --dockerfile ./Dockerfile -a multi-ai-chatbot --strategy immediate
+        run: flyctl auth token "${{ secrets.FLY_API_TOKEN }}"
 
-      - name: 🎯 Print Live URL
+      - name: 🚀 Deploy to Fly.io with Retry
+        run: |
+          retry=3
+          count=0
+          until flyctl deploy --remote-only --dockerfile ./Dockerfile -a multi-ai-chatbot --strategy immediate; do
+            count=$((count+1))
+            if [ $count -eq $retry ]; then
+              echo "❌ Deployment failed after $retry attempts"
+              exit 1
+            fi
+            echo "🔁 Retry deployment... attempt $count"
+            sleep 10
+          done
+
+      - name: 🎯 Print Live App URL
         run: echo "🔗 Visit your app at https://multi-ai-chatbot.fly.dev"
-      
