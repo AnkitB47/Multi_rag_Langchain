@@ -26,9 +26,12 @@ if PINECONE_INDEX_NAME not in pc.list_indexes().names():
         region=PINECONE_REGION,
         embed={
             "model": "llama-text-embed-v2",
-            "field_map": {"text": "text"}
+            "field_map": {
+                "text": "text"
+            }
         }
     )
+
 else:
     logger.info(f"Using existing index: {PINECONE_INDEX_NAME}")
 

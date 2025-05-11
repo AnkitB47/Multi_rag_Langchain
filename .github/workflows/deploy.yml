@@ -39,3 +39,7 @@ jobs:
       
       - name: 🚀 Deploy to Fly.io (force full build)
         run: flyctl deploy --remote-only --dockerfile ./Dockerfile -a multi-ai-chatbot --strategy immediate
+
+      - name: 🎯 Print Live URL
+        run: echo "🔗 Visit your app at https://multi-ai-chatbot.fly.dev"
+      
