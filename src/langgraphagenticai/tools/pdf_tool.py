@@ -8,38 +8,46 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-def query_pdf(query: str, pdf_path: str) -> Optional[str]:
-    try:
-        logger.info(f"📄 Processing PDF: {pdf_path}")
-        
-        # Initialize vector store
-        vectordb = get_vectordb(pdf_path)
-        if not vectordb:
-            raise ValueError("Failed to initialize vector store")
+class PDFQueryProcessor:
+    def __init__(self):
+        self.llm = load_openai()
+        self.retriever_kwargs = {
+            "search_type": "similarity",
+            "search_kwargs": {"k": 4, "filter": {"model": "llama-text-embed-v2"}}
+        }
+
+    def process_query(self, query: str, pdf_path: str) -> Optional[str]:
+        """Process PDF query with enhanced error handling"""
+        try:
+            logger.info(f"📄 Processing PDF: {pdf_path}")
             
-        # Load LLM
-        llm = load_openai()
-        if not llm:
-            raise ValueError("Failed to load LLM")
+            # Initialize vector store
+            vectordb = get_vectordb(pdf_path)
+            if not vectordb:
+                raise ValueError("Failed to initialize vector store")
+                
+            # Configure retriever
+            retriever = vectordb.as_retriever(**self.retriever_kwargs)
             
-        # Configure retriever
-        retriever = vectordb.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": 4}
-        )
-        
-        # Create QA chain
-        qa_chain = RetrievalQA.from_chain_type(
-            llm=llm,
-            chain_type="stuff",
-            retriever=retriever,
-            return_source_documents=True
-        )
-        
-        # Execute query
-        result = qa_chain({"query": query})
-        return result.get("result", "No answer found")
-        
-    except Exception as e:
-        logger.exception(f"❌ PDF processing failed: {e}")
-        return f"❌ Error processing PDF: {str(e)}"
+            # Create QA chain
+            qa_chain = RetrievalQA.from_chain_type(
+                llm=self.llm,
+                chain_type="stuff",
+                retriever=retriever,
+                return_source_documents=True
+            )
+            
+            # Execute query
+            result = qa_chain({"query": query})
+            return result.get("result", "No answer found")
+            
+        except Exception as e:
+            logger.exception(f"❌ PDF processing failed: {e}")
+            return f"❌ Error processing PDF: {str(e)}"
+
+# Singleton instance for better performance
+pdf_processor = PDFQueryProcessor()
+
+def query_pdf(query: str, pdf_path: str) -> str:
+    """Public interface for PDF querying"""
+    return pdf_processor.process_query(query, pdf_path)
