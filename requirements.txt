@@ -41,6 +41,7 @@ phidata
 groq
 agno
 phi
+lancedb>=0.4.5
 
 # --- Server / API ---
 fastapi
