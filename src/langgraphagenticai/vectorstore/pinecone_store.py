@@ -3,6 +3,8 @@
 import os
 import logging
 import math
+import time
+import threading
 from typing import List, Optional
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
@@ -20,9 +22,10 @@ EMBEDDING_MODEL = "text-embedding-3-large"
 EMBEDDING_DIMENSION = 1536
 MAX_REQUEST_SIZE = 1.8 * 1024 * 1024  # 1.8MB safety margin
 
+
 class PineconeVectorManager:
     def __init__(self):
-        """Initialize with proper configuration and safety checks"""
+        """Initialize with proper configuration and safety checks."""
         try:
             # Validate environment
             if not PINECONE_API_KEY:
@@ -57,7 +60,7 @@ class PineconeVectorManager:
             raise RuntimeError(f"System initialization error: {str(e)}")
 
     def _verify_index(self):
-        """Ensure index exists with correct configuration"""
+        """Ensure index exists with correct configuration."""
         try:
             active_indexes = self.pc.list_indexes().names()
             if PINECONE_INDEX_NAME not in active_indexes:
@@ -82,10 +85,10 @@ class PineconeVectorManager:
             raise
 
     def _calculate_batch_size(self, docs: List) -> int:
-        """Dynamically determine safe batch size based on content"""
+        """Dynamically determine safe batch size based on content."""
         try:
             avg_doc_size = sum(len(str(doc.page_content)) for doc in docs) / len(docs)
-            batch_size = max(1, math.floor(MAX_REQUEST_SIZE / (avg_doc_size * 1.2)))  # 20% buffer
+            batch_size = max(1, math.floor(MAX_REQUEST_SIZE / (avg_doc_size * 1.2)))
             logger.debug(f"Calculated batch size: {batch_size}")
             return min(batch_size, 100)  # Never exceed 100 docs/batch
         except Exception as e:
@@ -93,7 +96,7 @@ class PineconeVectorManager:
             return 10  # Fallback value
 
     def _process_document(self, pdf_path: str) -> List:
-        """Robust PDF loading and splitting"""
+        """Robust PDF loading and splitting."""
         try:
             # Validate file first
             if not os.path.exists(pdf_path):
@@ -122,7 +125,7 @@ class PineconeVectorManager:
             raise RuntimeError(f"Could not process PDF: {str(e)}")
 
     def get_vectorstore(self, pdf_path: str) -> PineconeVectorStore:
-        """Create and return a fully configured vector store"""
+        """Create and return a fully configured vector store."""
         try:
             logger.info(f"Starting PDF processing: {pdf_path}")
             
@@ -139,21 +142,22 @@ class PineconeVectorManager:
                 index_name=PINECONE_INDEX_NAME,
                 namespace="default",
                 text_key="text",
-                batch_size=batch_size,  # Critical for large PDFs
-                embedding_chunk_size=512  # Optimal for text-embedding-3
+                batch_size=batch_size,
+                embedding_chunk_size=512
             )
             
         except Exception as e:
             logger.error(f"Vector store creation failed: {e}")
             raise RuntimeError(f"Failed to create vector store: {str(e)}")
 
+
 # Singleton with thread-safe initialization
-import threading
 vector_manager = None
 vector_manager_lock = threading.Lock()
 
+
 def get_vectordb(pdf_path: str) -> PineconeVectorStore:
-    """Thread-safe public interface with lazy initialization"""
+    """Thread-safe public interface with lazy initialization."""
     global vector_manager
     try:
         with vector_manager_lock:
@@ -162,4 +166,7 @@ def get_vectordb(pdf_path: str) -> PineconeVectorStore:
         return vector_manager.get_vectorstore(pdf_path)
     except Exception as e:
         logger.error(f"Service unavailable: {str(e)}")
-        raise RuntimeError(f"Document processing service is currently unavailable. Please try again later.")
+        raise RuntimeError(
+            "Document processing service is currently unavailable. "
+            "Please try again later."
+        )
