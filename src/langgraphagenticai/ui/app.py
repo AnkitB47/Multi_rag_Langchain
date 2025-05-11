@@ -3,6 +3,7 @@ import tempfile
 from langgraphagenticai.graph.chatbot_graph import create_graph
 from langgraphagenticai.agentic.agno_team import load_agno_team
 from langgraphagenticai.agentic.phi_team import load_phi_team
+import fitz
 
 # Initialize LangGraph
 graph = create_graph()
@@ -17,6 +18,14 @@ pdf_file = st.file_uploader("📄 Upload a PDF", type=["pdf"])
 image_file = st.file_uploader("🖼️ Upload an Image", type=["png", "jpg", "jpeg"])
 
 pdf_path = image_path = None
+
+def extract_pdf_text(path):
+    try:
+        doc = fitz.open(path)
+        return "\n".join(page.get_text() for page in doc)
+    except:
+        return ""
+    
 if pdf_file:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(pdf_file.read())

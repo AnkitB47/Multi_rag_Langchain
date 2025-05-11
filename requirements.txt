@@ -41,7 +41,12 @@ phidata
 groq
 agno
 phi
+tantivy>=0.21.0
 lancedb>=0.4.5
+
+# Optional for local image/text extraction (fallback)
+pillow
+pdfminer.six
 
 # --- Server / API ---
 fastapi

@@ -1,5 +1,3 @@
-# src/langgraphagenticai/tools/pdf_tool.py
-
 import logging
 from langchain.chains import RetrievalQA
 from langgraphagenticai.vectorstore.pinecone_store import get_vectordb
