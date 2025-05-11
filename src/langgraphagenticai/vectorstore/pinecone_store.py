@@ -27,7 +27,7 @@ def initialize_pinecone_index():
             # Updated index creation with proper spec
             pc.create_index(
                 name=PINECONE_INDEX_NAME,
-                dimension=1024,  # Required dimension for llama-text-embed-v2
+                dimension=2048,  # Required dimension for llama-text-embed-v2
                 metric="dotproduct",
                 spec=ServerlessSpec(
                     cloud="aws",
