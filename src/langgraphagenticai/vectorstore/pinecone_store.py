@@ -5,22 +5,22 @@ import logging
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
 from langgraphagenticai.utils.pdf_utils import load_and_split_pdf
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import time
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuration - MUST match your Pinecone index exactly
+# Configuration - MUST match your Pinecone console settings exactly
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_INDEX_NAME = "multiagentrag"  # Hardcoded to prevent env var issues
+PINECONE_INDEX_NAME = "multiagentrag"  # Hardcoded to prevent config mismatches
 EMBEDDING_MODEL = "llama-text-embed-v2"
-PINECONE_REGION = "us-east-1"  # Hardcoded to match your index
 
 class PineconeVectorManager:
     def __init__(self):
-        """Initialize with EXACT configuration Pinecone requires for built-in embeddings"""
+        """Initialize with EXACT configuration Pinecone requires"""
         try:
+            # Initialize with critical headers for built-in embeddings
             self.pc = Pinecone(
                 api_key=PINECONE_API_KEY,
                 additional_headers={
@@ -51,90 +51,66 @@ class PineconeVectorManager:
             raise ValueError(error_msg)
         
         index = self.pc.Index(PINECONE_INDEX_NAME)
-        
-        # Verify index is ready
-        desc = self.pc.describe_index(PINECONE_INDEX_NAME)
-        if not desc.status['ready']:
-            raise ValueError(f"Index {PINECONE_INDEX_NAME} is not ready")
-            
         return index
 
-    def _prepare_document_batch(self, docs: List[Any]) -> List[Dict[str, Any]]:
-        """Prepare documents with ALL REQUIRED Pinecone metadata fields"""
+    def _prepare_records(self, docs: List[Any]) -> List[Dict[str, Any]]:
+        """Prepare documents in EXACT format Pinecone requires"""
         return [{
-            "id": f"doc-{i}-{time.time_ns()}",
-            "values": [],  # MUST be empty array for built-in embeddings
+            "id": f"doc-{i}-{int(time.time())}",
+            "values": [],  # MUST be empty for built-in embeddings
             "metadata": {
                 "text": doc.page_content,
                 "source": doc.metadata.get("source", "unknown"),
-                # These fields are ABSOLUTELY REQUIRED:
+                # These fields are CRITICAL:
                 "model": EMBEDDING_MODEL,
-                "embedding_model": EMBEDDING_MODEL,
-                # Recommended additional metadata:
-                "doc_type": "pdf",
-                "chunk_index": i,
-                "processing_time": time.time()
+                "embedding_model": EMBEDDING_MODEL
             }
         } for i, doc in enumerate(docs)]
 
     def upsert_documents(self, docs: List[Any]) -> None:
-        """Upsert documents with proper batch processing and error handling"""
-        records = self._prepare_document_batch(docs)
+        """Upsert documents with proper batch processing"""
+        records = self._prepare_records(docs)
         
-        # Optimal batch size for serverless
-        batch_size = 50  
-        success_count = 0
-        
-        for i in range(0, len(records), batch_size):
-            batch = records[i:i + batch_size]
-            try:
-                response = self.index.upsert(
-                    vectors=batch,
-                    namespace="default",
-                    # These parameters are CRITICAL:
-                    embedding_model=EMBEDDING_MODEL,
-                    batch_size=batch_size
-                )
-                success_count += len(batch)
-                logger.debug(f"Upserted batch {i//batch_size + 1}/{len(records)//batch_size + 1}")
-            except Exception as e:
-                logger.error(f"Failed to upsert batch starting at doc {i}: {str(e)}")
-                raise RuntimeError(f"Failed to upsert documents: {str(e)}")
-                
-        logger.info(f"Successfully upserted {success_count}/{len(records)} documents")
+        try:
+            # Using upsert with EXACT required parameters
+            response = self.index.upsert(
+                vectors=records,
+                namespace="default",
+                embedding_model=EMBEDDING_MODEL  # REQUIRED
+            )
+            logger.info(f"Successfully upserted {len(records)} documents")
+            return response
+        except Exception as e:
+            logger.error(f"Failed to upsert documents: {str(e)}")
+            raise RuntimeError(f"Document upsert failed: {str(e)}")
 
     def get_vectorstore(self, pdf_path: str) -> PineconeVectorStore:
-        """
-        Create and return a fully configured PineconeVectorStore
-        with guaranteed compatibility for built-in embeddings
-        """
+        """Create and return a fully configured PineconeVectorStore"""
         try:
-            logger.info(f"Loading and processing PDF: {pdf_path}")
+            logger.info(f"Processing PDF: {pdf_path}")
             docs = load_and_split_pdf(pdf_path)
             
             if not docs:
                 raise ValueError("PDF processing returned no documents")
                 
-            logger.info(f"Upserting {len(docs)} document chunks")
+            # Upsert with proper configuration
             self.upsert_documents(docs)
             
-            # Initialize with EXACT configuration required
+            # Initialize with EXACT configuration
             return PineconeVectorStore(
                 index_name=PINECONE_INDEX_NAME,
                 embedding=None,  # MUST be None for built-in
                 text_key="text",
                 namespace="default",
                 pinecone_api_key=PINECONE_API_KEY,
-                # These are ABSOLUTELY REQUIRED:
-                embedding_model=EMBEDDING_MODEL,
-                index=self.index
+                embedding_model=EMBEDDING_MODEL  # REQUIRED
             )
         except Exception as e:
-            logger.error(f"Failed to create vector store: {str(e)}")
+            logger.error(f"Vector store creation failed: {str(e)}")
             raise RuntimeError(f"Vector store creation failed: {str(e)}")
 
-# Singleton instance - ensures single connection pool
-_vector_manager: Optional[PineconeVectorManager] = None
+# Singleton instance
+_vector_manager = None
 
 def get_vectordb(pdf_path: str) -> PineconeVectorStore:
     """Public interface with lazy initialization"""
