@@ -48,11 +48,7 @@ def query_pdf(query: str, pdf_path: str) -> str:
         
         result = qa_chain({"query": query})
         
-        # Add source verification
-        if not result.get('source_documents'):
-            return "I couldn't find relevant content in the PDF. Try asking about specific sections."
-            
-        return f"From the PDF: {result['result']}\n\nSources: {[d.metadata for d in result['source_documents']]}"
+        return result["result"]
         
     except Exception as e:
         return f"Processing error: {str(e)}"
