@@ -21,11 +21,9 @@ openai>=1.14.3
 google-generativeai>=0.4.1
 pgvector
 sqlalchemy
-faiss-cpu>=1.8.0  # NEW: Required for FAISS index operations
-faiss-gpu>=1.8.0; sys_platform == 'linux'  # NEW: GPU version for Linux
 
 # --- Optional Transformers (fallback embedding & tools) ---
-sentence-transformers>=2.7.0  # UPDATED: Ensure CLIP support
+sentence-transformers
 transformers>=4.41.0
 torch>=2.2.2
 accelerate
@@ -38,11 +36,6 @@ pypdf
 duckduckgo-search
 yfinance
 
-# --- Image Processing ---  # NEW SECTION
-pillow>=10.0.0  # Required for image operations
-opencv-python-headless>=4.8.0  # NEW: Helpful for advanced image processing
-imageio>=2.31.1  # NEW: Additional image support
-
 # --- Agent Frameworks ---
 phidata
 groq
@@ -50,6 +43,10 @@ agno
 phi
 tantivy>=0.21.0
 lancedb>=0.4.5
+
+# Optional for local image/text extraction (fallback)
+pillow
+pdfminer.six
 
 # --- Server / API ---
 fastapi
