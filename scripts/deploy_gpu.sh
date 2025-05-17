@@ -2,81 +2,98 @@
 set -euo pipefail
 
 log()  { echo -e "\n▶️  $*"; }
-err()  { echo -e "\n❌ $*" >&2; exit 1; }
+fail() { echo -e "\n❌ $*" >&2; exit 1; }
 
-# ── 1) Mandatory environment variables (from GitHub Secrets) ───────
+#───────────────────────────────────────────────────────────
+# 1) Required env vars (set these from GitHub Actions secrets)
+#───────────────────────────────────────────────────────────
 : "${GHCR_USER:?GHCR_USER must be set}"
 : "${GHCR_TOKEN:?GHCR_TOKEN must be set}"
 : "${RUNPOD_API_KEY:?RUNPOD_API_KEY must be set}"
 : "${API_AUTH_TOKEN:?API_AUTH_TOKEN must be set}"
 : "${FAISS_INDEX_PATH:?FAISS_INDEX_PATH must be set}"
 
-# ── 2) Prepare image name ─────────────────────────────────────────
+#───────────────────────────────────────────────────────────
+# 2) Prepare image name
+#───────────────────────────────────────────────────────────
 IMAGE="ghcr.io/${GHCR_USER,,}/faiss-gpu-api:latest"
 
-# ── 3) Install runpodctl CLI if missing ──────────────────────────
-if ! command -v runpodctl &>/dev/null; then
+#───────────────────────────────────────────────────────────
+# 3) Install the official runpodctl CLI if missing
+#───────────────────────────────────────────────────────────
+if ! command -v runpodctl &> /dev/null; then
   log "Installing runpodctl CLI…"
-  # Download the official Run-Pod CLI binary and install it
-  curl -sL https://github.com/Run-Pod/runpodctl/releases/latest/download/runpodctl-linux-amd64 \
-    -o runpodctl
-  chmod +x runpodctl
-  sudo mv runpodctl /usr/local/bin/
+  wget -qO- cli.runpod.net | sudo bash         # ❌ DO NOT use GitHub raw URLs!
 fi
 
-# ── 4) Log into GHCR, build & push your GPU image ────────────────
+# 4) Configure it once
+runpodctl config --apiKey="${RUNPOD_API_KEY}"
+
+#───────────────────────────────────────────────────────────
+# 5) Build & push your GPU Docker image
+#───────────────────────────────────────────────────────────
 log "Building GPU image…"
-docker build --no-cache -f docker/Dockerfile.gpu -t faiss-gpu-api:latest .
+docker build \
+  --no-cache \
+  -f docker/Dockerfile.gpu \
+  -t faiss-gpu-api:latest \
+  .
 
 log "Logging into ghcr.io…"
-echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
 
-log "Tagging & pushing $IMAGE…"
-docker tag faiss-gpu-api:latest "$IMAGE"
-docker push "$IMAGE"
+log "Tagging & pushing ${IMAGE}…"
+docker tag faiss-gpu-api:latest "${IMAGE}"
+docker push "${IMAGE}"
 
-# ── 5) Tear down any existing Spot Pod with our fixed name ───────
-POD_NAME="multi-rag-langgraph"
-existing=$(runpodctl pod list --apiKey "$RUNPOD_API_KEY" --output json \
-  | jq -r --arg n "$POD_NAME" '.[] | select(.name==$n) | .id')
+#───────────────────────────────────────────────────────────
+# 6) Rent a fresh Spot Pod via RunPod GraphQL ─────────────
+#───────────────────────────────────────────────────────────
+# We use the real GraphQL endpoint: https://api.runpod.io/graphql
 
-if [[ -n "$existing" ]]; then
-  log "Deleting old pod $existing…"
-  runpodctl pod delete --apiKey "$RUNPOD_API_KEY" "$existing"
-fi
+read -r -d '' PAYLOAD <<EOF
+{
+  "query": "mutation RentSpot(\$in: PodRentInterruptableInput!) { podRentInterruptable(input:\$in) { id publicIp desiredStatus } }",
+  "variables": {
+    "in": {
+      "name": "gpu-search-$(date +%s)",
+      "gpuCount": 1,
+      "minVcpuCount": 8,
+      "minMemoryInGb": 30,
+      "volumeInGb": 20,
+      "containerDiskInGb": 5,
+      "imageName": "${IMAGE}",
+      "gpuTypeId": "NVIDIA RTX 3080 Ti",
+      "ports": "8000/http",
+      "env": [
+        { "key": "API_AUTH_TOKEN",   "value": "${API_AUTH_TOKEN}" },
+        { "key": "FAISS_INDEX_PATH", "value": "${FAISS_INDEX_PATH}" }
+      ]
+    }
+  }
+}
+EOF
 
-# ── 6) Rent a new Spot Pod with our image ────────────────────────
-log "Renting new Spot Pod…"
-new_id=$(runpodctl pod rent-interruptable \
-  --apiKey "$RUNPOD_API_KEY" \
-  --name "$POD_NAME" \
-  --imageName "$IMAGE" \
-  --gpuTypeName "NVIDIA RTX 3080 Ti" \
-  --gpuCount 1 \
-  --vcpu 8 \
-  --memoryGB 30 \
-  --volumeGB 20 \
-  --diskGB 5 \
-  --ports "8000/http" \
-  --env "API_AUTH_TOKEN=$API_AUTH_TOKEN" \
-  --env "FAISS_INDEX_PATH=$FAISS_INDEX_PATH" \
-  --output json \
-  | jq -r '.id')
+log "Renting new Spot Pod via GraphQL…"
+resp=$(curl -fsSL \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+  https://api.runpod.io/graphql \
+  -d "${PAYLOAD}")
 
-if [[ -z "$new_id" ]]; then
-  err "Failed to rent new Spot Pod"
-fi
+podId=$(jq -r .data.podRentInterruptable.id    <<<"$resp")
+ip  =$(jq -r .data.podRentInterruptable.publicIp<<<"$resp")
+status=$(jq -r .data.podRentInterruptable.desiredStatus<<<"$resp")
 
-# ── 7) Fetch its public IP ───────────────────────────────────────
-public_ip=$(runpodctl pod get --apiKey "$RUNPOD_API_KEY" "$new_id" \
-  --output json | jq -r '.publicIp')
+[[ "$podId" != "null" && "$status" == "RUNNING" ]] \
+  || fail "Failed to rent spot pod:\n$resp"
 
-log "✅ Spot Pod created! ID=$new_id  IP=$public_ip"
+log "✅ Pod created! ID=$podId  IP=$ip"
 
 echo
-echo "Your GPU Image‐Search API is live at http://$public_ip:8000/search"
-echo "Test with:"
-echo "  curl -X POST \\"
-echo "    -H \"Authorization: Bearer $API_AUTH_TOKEN\" \\"
-echo "    -F \"file=@test.jpg\" \\"
-echo "    http://$public_ip:8000/search?top_k=3"
+echo "🖼  GPU Image-Search API is now live at:"
+echo "   http://${ip}:8000/search?top_k=3"
+echo "   curl -X POST \\"
+echo "     -H \"Authorization: Bearer ${API_AUTH_TOKEN}\" \\"
+echo "     -F \"file=@test.jpg\" \\"
+echo "     http://${ip}:8000/search?top_k=3"
