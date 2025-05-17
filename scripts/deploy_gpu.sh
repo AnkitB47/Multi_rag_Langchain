@@ -42,7 +42,7 @@ print("▶️ Creating new spot pod…")
 pod = runpod.create_pod(
     name="multi-rag-langgraph",
     image_name=image,
-    gpu_type_id="NVIDIA RTX 3080 Ti",  
+    gpu_type_id="NVIDIA GeForce RTX 3080 Ti",  
     cloud_type="SECURE",               # Required parameter
     gpu_count=1,                       # Number of GPUs
     volume_in_gb=50,                   # Storage size
@@ -51,6 +51,7 @@ pod = runpod.create_pod(
     volume_mount_path="/data",         # Mount path for volume
     env={"API_AUTH_TOKEN": API_AUTH_TOKEN, "FAISS_INDEX_PATH": FAISS_INDEX},
     support_public_ip=True             # Enable public IP
+    bid_percent=50
 )
 
 if pod.status not in ("RUNNING", "RESUMED"):
