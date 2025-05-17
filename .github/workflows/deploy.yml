@@ -7,10 +7,8 @@ on:
 
 jobs:
   build-test-and-deploy:
-    name: 🔧 Build, Test & Deploy
     runs-on: ubuntu-latest
     env:
-      # GPU service secrets
       GHCR_USER:        ${{ secrets.GHCR_USER }}
       GHCR_TOKEN:       ${{ secrets.GHCR_TOKEN }}
       RUNPOD_API_KEY:   ${{ secrets.RUNPOD_API_KEY }}
@@ -20,8 +18,7 @@ jobs:
       FAISS_INDEX_PATH: ${{ secrets.FAISS_INDEX_PATH }}
 
     steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: 🐍 Setup Python
         uses: actions/setup-python@v4
@@ -41,7 +38,6 @@ jobs:
         run: PYTHONPATH=src pytest src/langgraphagenticai/tests
 
       # ────────────────────────────────────────────────
-      # Fly.io deploy for CPU-based PDF service
       - name: ⚙️ Install Fly CLI
         run: |
           curl -L https://fly.io/install.sh | sh
@@ -53,9 +49,11 @@ jobs:
       - name: 🚀 Deploy PDF service to Fly.io
         run: |
           retry=3; count=0
-          until flyctl deploy --remote-only \
+          until flyctl deploy . \
+               --remote-only \
                --dockerfile=./docker/Dockerfile.cpu \
-               -a multi-ai-chatbot --strategy immediate; do
+               -a multi-ai-chatbot \
+               --strategy immediate; do
             count=$((count+1))
             if [ $count -eq $retry ]; then
               echo "❌ Fly deployment failed after $retry attempts" >&2
@@ -69,7 +67,6 @@ jobs:
         run: echo "✅ PDF service live at https://multi-ai-chatbot.fly.dev"
 
       # ────────────────────────────────────────────────
-      # Build & push GPU Image-Search service
       - name: 🐳 Setup Buildx
         uses: docker/setup-buildx-action@v2
 
@@ -88,8 +85,6 @@ jobs:
           push: true
           tags: ghcr.io/${{ env.GHCR_USER }}/faiss-gpu-api:latest
 
-      # ────────────────────────────────────────────────
-      # Deploy GPU image to RunPod
       - name: 🛠 Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
@@ -98,7 +93,6 @@ jobs:
           REST="https://rest.runpod.io/v1"
           IMAGE="ghcr.io/${GHCR_USER,,}/faiss-gpu-api:latest"
 
-          # 1) Start if not running
           STATUS=$(curl -s -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
             "${REST}/pods/${RUNPOD_POD_ID}" | jq -r .desiredStatus)
           if [[ "$STATUS" != "RUNNING" ]]; then
@@ -109,7 +103,6 @@ jobs:
             sleep 30
           fi
 
-          # 2) Deploy new container
           curl -s -X POST \
             -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
             -H "Content-Type: application/json" \
