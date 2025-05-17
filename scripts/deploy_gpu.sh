@@ -40,9 +40,17 @@ for p in runpod.get_pods():
 # 5) Create new interruptible GPU pod
 print("▶️ Creating new spot pod…")
 pod = runpod.create_pod(
-    "multi-rag-langgraph",    # name
-    image,                    # container image
-    "NVIDIA RTX 3080 Ti"      # GPU type as third *positional* arg
+    name="multi-rag-langgraph",
+    image_name=image,
+    gpu_type_id="NVIDIA RTX 3080 Ti",  
+    cloud_type="SECURE",               # Required parameter
+    gpu_count=1,                       # Number of GPUs
+    volume_in_gb=50,                   # Storage size
+    container_disk_in_gb=20,           # Container disk size
+    ports="8000/http",                 # Expose port 8000
+    volume_mount_path="/data",         # Mount path for volume
+    env={"API_AUTH_TOKEN": API_AUTH_TOKEN, "FAISS_INDEX_PATH": FAISS_INDEX},
+    support_public_ip=True             # Enable public IP
 )
 
 if pod.status not in ("RUNNING", "RESUMED"):
