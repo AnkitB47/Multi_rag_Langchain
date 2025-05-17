@@ -50,8 +50,7 @@ pod = runpod.create_pod(
     ports="8000/http",                 # Expose port 8000
     volume_mount_path="/data",         # Mount path for volume
     env={"API_AUTH_TOKEN": API_AUTH_TOKEN, "FAISS_INDEX_PATH": FAISS_INDEX},
-    support_public_ip=True,             # Enable public IP
-    bid_percent=50
+    support_public_ip=True             # Enable public IP
 )
 
 if pod.status not in ("RUNNING", "RESUMED"):
