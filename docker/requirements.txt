@@ -1,5 +1,5 @@
 # --- Core App ---
-streamlit
+streamlit>=1.32.0
 python-dotenv
 aiohttp
 tiktoken
@@ -26,7 +26,7 @@ sqlalchemy
 sentence-transformers>=2.7.0  # UPDATED: Ensure CLIP support
 transformers>=4.41.0
 torch>=2.2.2
-faiss-cpu>=1.8.0 
+faiss-cpu>=1.7.4 
 accelerate
 einops>=0.7.0
 

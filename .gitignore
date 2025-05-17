@@ -17,6 +17,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+/scripts/deploy_gpu.sh
+/docker/docker-compose.yml
 
 # VS Code settings
 .vscode/

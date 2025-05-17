@@ -1,57 +1,129 @@
-name: 🚀 CI/CD - Lint, Test & Deploy to Fly.io
+name: 🚀 CI/CD - PDF + Image-Search Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build-test-deploy:
-    name: 🔧 Build, Test, and Deploy
+  build-test-and-deploy:
+    name: 🔧 Build, Test & Deploy
     runs-on: ubuntu-latest
+    env:
+      # GPU service secrets
+      GHCR_USER:      ${{ secrets.GHCR_USER }}
+      GHCR_TOKEN:     ${{ secrets.GHCR_TOKEN }}
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      RUNPOD_POD_ID:  ${{ secrets.RUNPOD_POD_ID }}
+      API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
+      GPU_API_URL:    ${{ secrets.GPU_API_URL }}
+      FAISS_INDEX_PATH: ${{ secrets.FAISS_INDEX_PATH }}
 
     steps:
-      - name: 📥 Checkout Repository
+      - name: 📥 Checkout
         uses: actions/checkout@v3
 
-      - name: 🐍 Set up Python 3.10
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: 📦 Install Dependencies
+      - name: 📦 Install Python deps
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install flake8 pytest
+          pip install --upgrade pip
+          pip install -r requirements.txt flake8 pytest
 
-      - name: ✅ Run Flake8 Linting
+      - name: ✅ Lint
         run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
-      - name: 🧪 Run Pytest Tests
+      - name: 🧪 Test
         run: PYTHONPATH=src pytest src/langgraphagenticai/tests
 
-      - name: ⚙️ Upgrade Fly CLI (latest stable)
+      # ────────────────────────────────────────────────
+      # Fly.io deploy for CPU-based PDF service
+      - name: ⚙️ Install Fly CLI
         run: |
           curl -L https://fly.io/install.sh | sh
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
-      - name: 🔐 Authenticate with Fly.io
+      - name: 🔐 Fly Login
         run: flyctl auth login --access-token "${{ secrets.FLY_API_TOKEN }}"
-        
-      - name: 🚀 Deploy to Fly.io with Retry
+
+      - name: 🚀 Deploy PDF service to Fly.io
         run: |
-          retry=3
-          count=0
-          until flyctl deploy --remote-only --dockerfile ./Dockerfile -a multi-ai-chatbot --strategy immediate; do
+          retry=3; count=0
+          until flyctl deploy --remote-only \
+               --dockerfile docker/Dockerfile.cpu \
+               -a multi-ai-chatbot --strategy immediate; do
             count=$((count+1))
             if [ $count -eq $retry ]; then
-              echo "❌ Deployment failed after $retry attempts"
+              echo "❌ Fly deployment failed after $retry attempts" >&2
               exit 1
             fi
-            echo "🔁 Retry deployment... attempt $count"
+            echo "🔁 Retrying Fly deploy (#$count)…"
             sleep 10
           done
 
-      - name: 🎯 Print Live App URL
-        run: echo "🔗 Visit your app at https://multi-ai-chatbot.fly.dev"
+      - name: 🎯 Show Fly.io URL
+        run: echo "✅ PDF service live at https://multi-ai-chatbot.fly.dev"
+
+      # ────────────────────────────────────────────────
+      # Build & push GPU Image-Search service
+      - name: 🐳 Setup Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: 🔐 Login to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ env.GHCR_USER }}
+          password: ${{ env.GHCR_TOKEN }}
+
+      - name: 📦 Build & push GPU image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: docker/Dockerfile.gpu
+          push: true
+          tags: ghcr.io/${{ env.GHCR_USER }}/faiss-gpu-api:latest
+
+      # ────────────────────────────────────────────────
+      # Deploy GPU image to RunPod
+      - name: 🛠 Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: 🚀 Deploy GPU API on RunPod
+        run: |
+          REST="https://rest.runpod.io/v1"
+          IMAGE="ghcr.io/${GHCR_USER,,}/faiss-gpu-api:latest"
+
+          # 1) Start if not running
+          STATUS=$(curl -s -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            "${REST}/pods/${RUNPOD_POD_ID}" | jq -r .desiredStatus)
+          if [[ "$STATUS" != "RUNNING" ]]; then
+            echo "⚡ Pod is $STATUS — starting…"
+            curl -s -X POST \
+              -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+              "${REST}/pods/${RUNPOD_POD_ID}/start" -d '{}'
+            sleep 30
+          fi
+
+          # 2) Deploy new container
+          curl -s -X POST \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            "${REST}/pods/${RUNPOD_POD_ID}/run" \
+            -d "$(jq -n \
+                --arg image "$IMAGE" \
+                --arg token "$API_AUTH_TOKEN" \
+                --arg path  "$FAISS_INDEX_PATH" \
+               '{
+                  image: $image,
+                  env: {
+                    API_AUTH_TOKEN: $token,
+                    FAISS_INDEX_PATH: $path
+                  },
+                  ports: ["8000/http"]
+                }')"
+
+          echo "✅ GPU API live at ${GPU_API_URL}/search?top_k=3"

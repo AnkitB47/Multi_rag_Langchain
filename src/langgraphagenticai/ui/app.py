@@ -7,6 +7,12 @@ from langgraphagenticai.graph.chatbot_graph import create_graph
 from typing import Optional, Tuple
 import logging
 from datetime import datetime
+import requests  
+from PIL import Image
+import io
+
+GPU_API_URL = os.getenv("GPU_API_URL", "http://localhost:8000").rstrip("/")
+API_TOKEN = os.getenv("API_AUTH_TOKEN")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +38,23 @@ def setup_ui():
             }
         </style>
     """, unsafe_allow_html=True)
+    
+# --- New GPU Search Function ---
+def gpu_image_search(image_path: str, top_k: int = 3) -> list:
+    """Call GPU API for similarity search"""
+    try:
+        with open(image_path, "rb") as img_file:
+            response = requests.post(
++               f"{GPU_API_URL}/search",
+                files={"file": img_file},
+                timeout=30
+            )
+        if response.status_code == 200:
+            return response.json().get("indices", [])
+        return []
+    except Exception as e:
+        logger.error(f"GPU search failed: {e}")
+        return []
 
 def handle_file_upload(file_type: str, extensions: list) -> Optional[str]:
     """Handle file upload and return temp file path"""
@@ -59,13 +82,44 @@ def cleanup_files(*file_paths):
                 logger.warning(f"Couldn't delete temp file {path}: {e}")
                 st.warning(f"Couldn't clean up temporary file: {os.path.basename(path)}")
 
+# --- Modified Display Function ---
 def display_results(result: dict, pdf_path: Optional[str], image_path: Optional[str]):
-    """Display processing results"""
+    """Display processing results with image search"""
     with st.container():
         if pdf_path:
             st.info(f"📄 Processed PDF: {os.path.basename(pdf_path)}")
         if image_path:
             st.info(f"🖼 Processed Image: {os.path.basename(image_path)}")
+            
+            if st.checkbox("🔍 Find similar images"):
+                with st.spinner("Searching similar images..."):
+                    try:
+                        with open(image_path, "rb") as f:
+                            response = requests.post(
+                                f"{GPU_API_URL}/search",
+                                files={"file": f},
+                                headers={"Authorization": f"Bearer {API_TOKEN}"},
+                                timeout=10
+                            )
+                        
+                        if response.ok:
+                            matches = response.json().get("matches", [])
+                            if matches:
+                                st.subheader("Top Similar Images")
+                                cols = st.columns(3)
+                                for i, match in enumerate(matches[:3]):
+                                    with cols[i]:
+                                    # prefix with GPU_API_URL if it's relative
+                                        url = match["image_url"]
+                                        if url.startswith("/"):
+                                            url = f"{GPU_API_URL}{url}"
+                                        img_response = requests.get(url, timeout=10)
+                                        img = Image.open(io.BytesIO(img_response.content))
+                                        st.image(img, caption=f"Similarity: {match['similarity']:.2f}")
+                        else:
+                            st.warning("Image search service unavailable")
+                    except Exception as e:
+                        st.error(f"Search error: {str(e)}")
         
         if "final_output" in result:
             st.success(result["final_output"])

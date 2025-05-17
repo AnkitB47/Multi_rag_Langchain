@@ -1,0 +1,59 @@
+# --- Core App ---
+streamlit
+python-dotenv
+aiohttp
+tiktoken
+pydantic>=2.6.4
+
+# --- LangChain & Ecosystem ---
+langchain>=0.1.16
+langchain-core>=0.1.40
+langchain-community>=0.0.33
+langchain-pinecone>=0.0.6
+langchain-openai>=0.1.6
+
+# --- LangGraph Orchestration ---
+langgraph>=0.0.40
+
+# --- Embeddings & Vector DB ---
+pinecone-client>=3.0.0
+openai>=1.14.3
+google-generativeai>=0.4.1
+pgvector
+sqlalchemy
+
+# --- Optional Transformers (fallback embedding & tools) ---
+sentence-transformers>=2.7.0  # UPDATED: Ensure CLIP support
+transformers>=4.41.0
+faiss-gpu==1.7.2
+torch==2.2.2 --extra-index-url https://download.pytorch.org/whl/cu118
+accelerate
+einops>=0.7.0
+
+# --- File Parsing & Tools ---
+PyMuPDF
+arxiv
+pypdf
+duckduckgo-search
+yfinance
+
+# --- Image Processing ---  # NEW SECTION
+pillow>=10.0.0  # Required for image operations
+opencv-python-headless>=4.8.0  # NEW: Helpful for advanced image processing
+imageio>=2.31.1  # NEW: Additional image support
+
+# --- Agent Frameworks ---
+phidata
+groq
+agno
+phi
+tantivy>=0.21.0
+lancedb>=0.4.5
+
+# --- Server / API ---
+fastapi>=0.109.0
+uvicorn>=0.27.0
+
+# --- Dev, Test, Lint ---
+pytest
+flake8
