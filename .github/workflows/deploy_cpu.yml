@@ -1,0 +1,65 @@
+name: 🚀 CI/CD – PDF Service (CPU)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with: 
+            python-version: '3.10'
+
+      - name: 📦 Install deps
+        run: |
+          pip install --upgrade pip
+          pip install -r docker/requirements.txt
+          pip install flake8 pytest
+
+      - name: ✅ Lint
+        run: flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: 🧪 Test
+        run: PYTHONPATH=src pytest src/langgraphagenticai/tests
+
+  deploy-fly:
+    needs: build-lint-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: ⚙️ Install Fly CLI
+        run: |
+          curl -L https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
+
+      - name: 🔐 Fly Login
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl auth login --access-token "$FLY_API_TOKEN"
+
+      - name: 🚀 Deploy PDF service
+        run: |
+          retry=3; count=0
+          until flyctl deploy . \
+               --remote-only \
+               --dockerfile docker/Dockerfile.cpu \
+               --strategy immediate \
+               -a multi-ai-chatbot; do
+            count=$((count+1))
+            if [ $count -eq $retry ]; then
+              echo "❌ Fly deployment failed after $retry attempts" >&2
+              exit 1
+            fi
+            echo "🔁 Retrying Fly deploy (#$count)…"
+            sleep 10
+          done
+
+      - name: 🎯 URL
+        run: echo "✅ PDF service live at https://multi-ai-chatbot.fly.dev"
