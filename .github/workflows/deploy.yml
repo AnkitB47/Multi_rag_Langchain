@@ -11,12 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # GPU service secrets
-      GHCR_USER:      ${{ secrets.GHCR_USER }}
-      GHCR_TOKEN:     ${{ secrets.GHCR_TOKEN }}
-      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
-      RUNPOD_POD_ID:  ${{ secrets.RUNPOD_POD_ID }}
-      API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
-      GPU_API_URL:    ${{ secrets.GPU_API_URL }}
+      GHCR_USER:        ${{ secrets.GHCR_USER }}
+      GHCR_TOKEN:       ${{ secrets.GHCR_TOKEN }}
+      RUNPOD_API_KEY:   ${{ secrets.RUNPOD_API_KEY }}
+      RUNPOD_POD_ID:    ${{ secrets.RUNPOD_POD_ID }}
+      API_AUTH_TOKEN:   ${{ secrets.API_AUTH_TOKEN }}
+      GPU_API_URL:      ${{ secrets.GPU_API_URL }}
       FAISS_INDEX_PATH: ${{ secrets.FAISS_INDEX_PATH }}
 
     steps:
@@ -54,7 +54,7 @@ jobs:
         run: |
           retry=3; count=0
           until flyctl deploy --remote-only \
-               --dockerfile docker/Dockerfile.cpu \
+               --dockerfile=./docker/Dockerfile.cpu \
                -a multi-ai-chatbot --strategy immediate; do
             count=$((count+1))
             if [ $count -eq $retry ]; then
