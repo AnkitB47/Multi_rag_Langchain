@@ -17,8 +17,8 @@ IMAGE="ghcr.io/${GHCR_USER,,}/faiss-gpu-api:latest"
 # ── 3) Install runpodctl CLI if missing ──────────────────────────
 if ! command -v runpodctl &>/dev/null; then
   log "Installing runpodctl CLI…"
-  # Download the latest linux-amd64 binary, make it executable, and install it
-  curl -sL https://github.com/runpod/cli/releases/latest/download/runpodctl-linux-amd64 \
+  # Download the official Run-Pod CLI binary and install it
+  curl -sL https://github.com/Run-Pod/runpodctl/releases/latest/download/runpodctl-linux-amd64 \
     -o runpodctl
   chmod +x runpodctl
   sudo mv runpodctl /usr/local/bin/
