@@ -6,7 +6,7 @@ primary_region = 'ams'
   auto_rollback = true
 
 [build]
-  dockerfile = './Dockerfile'
+  dockerfile = "./docker/Dockerfile.cpu"
 
 [env]
   PORT = '8501'
