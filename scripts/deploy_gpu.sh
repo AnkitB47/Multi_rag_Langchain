@@ -37,25 +37,61 @@ for p in runpod.get_pods():
         print(f"▶️ Deleting old pod {p.id}")
         runpod.terminate_pod(p.id)
 
-# 5) Create new interruptible GPU pod
-print("▶️ Creating new spot pod…")
-pod = runpod.create_pod(
-    name="multi-rag-langgraph",
-    image_name=image,
-    gpu_type_id="NVIDIA GeForce RTX 3080 Ti",  
-    cloud_type="SECURE",               # Required parameter
-    gpu_count=1,                       # Number of GPUs
-    volume_in_gb=50,                   # Storage size
-    container_disk_in_gb=20,           # Container disk size
-    ports="8000/http",                 # Expose port 8000
-    volume_mount_path="/data",         # Mount path for volume
-    env={"API_AUTH_TOKEN": API_AUTH_TOKEN, "FAISS_INDEX_PATH": FAISS_INDEX},
-    support_public_ip=True             # Enable public IP
-)
+# 5) Define GPU priority list with fallback options
+GPU_PRIORITY_LIST = [
+    "NVIDIA GeForce RTX 3080 Ti",  # First choice
+    "NVIDIA GeForce RTX 3080",     # Second choice
+    "NVIDIA RTX A4000",            # Third choice
+    "NVIDIA GeForce RTX 3090",     # Fourth choice
+    "NVIDIA GeForce RTX 3070",     # Fifth choice
+    "NVIDIA RTX A5000"             # Final fallback
+]
 
-if pod.status not in ("RUNNING", "RESUMED"):
-    print("❌ Pod did not start:", pod)
-    sys.exit(1)
+# 6) Try creating pod with different GPUs
+max_retries = 3
+retry_delay = 30  # seconds
+
+for attempt in range(max_retries):
+    for gpu_type in GPU_PRIORITY_LIST:
+        try:
+            print(f"▶️ Attempt {attempt + 1}: Trying GPU {gpu_type}...")
+            pod = runpod.create_pod(
+                name="multi-rag-langgraph",
+                image_name=image,
+                gpu_type_id=gpu_type,
+                cloud_type="SECURE",
+                gpu_count=1,
+                volume_in_gb=50,
+                container_disk_in_gb=20,
+                ports="8000/http",
+                volume_mount_path="/data",
+                env={
+                    "API_AUTH_TOKEN": API_AUTH_TOKEN,
+                    "FAISS_INDEX_PATH": FAISS_INDEX
+                },
+                support_public_ip=True,
+                min_vcpu_count=8,  # Helps with availability
+                min_memory_in_gb=30  # Helps with availability
+            )
+            
+            if pod.status in ("RUNNING", "RESUMED"):
+                break  # Success!
+                
+            print(f"⚠️ Pod created but not running. Status: {pod.status}")
+            runpod.terminate_pod(pod.id)
+            
+        except Exception as e:
+            print(f"⚠️ Failed with {gpu_type}: {str(e)}")
+            continue
+    
+    if 'pod' in locals() and pod.status in ("RUNNING", "RESUMED"):
+        break  # Success!
+    
+    if attempt < max_retries - 1:
+        print(f"🔄 Retrying in {retry_delay} seconds...")
+        sleep(retry_delay)
+else:
+    sys.exit("❌ Failed to create pod after multiple attempts")
 
 # 6) Fetch public IP
 public_ip = runpod.get_pod(pod.id).public_ip
