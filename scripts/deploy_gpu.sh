@@ -26,8 +26,10 @@ if ! command -v runpodctl &> /dev/null; then
   wget -qO- cli.runpod.net | sudo bash         # ❌ DO NOT use GitHub raw URLs!
 fi
 
-# 4) Configure it once
-runpodctl config --apiKey="${RUNPOD_API_KEY}"
+# 4) Make sure config directory exists & then configure your API key
+log "Configuring runpodctl…"
+mkdir -p "$HOME/.runpod"
+runpodctl config --apiKey="$RUNPOD_API_KEY"
 
 #───────────────────────────────────────────────────────────
 # 5) Build & push your GPU Docker image
@@ -82,7 +84,7 @@ resp=$(curl -fsSL \
   -d "${PAYLOAD}")
 
 podId=$(jq -r .data.podRentInterruptable.id    <<<"$resp")
-ip  =$(jq -r .data.podRentInterruptable.publicIp<<<"$resp")
+ip=$(jq -r .data.podRentInterruptable.publicIp <<<"$resp")
 status=$(jq -r .data.podRentInterruptable.desiredStatus<<<"$resp")
 
 [[ "$podId" != "null" && "$status" == "RUNNING" ]] \
