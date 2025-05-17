@@ -2,24 +2,28 @@
 set -euo pipefail
 
 log()  { echo -e "\n▶️  $*"; }
-fail() { echo -e "\n❌ $*" >&2; exit 1; }
+err()  { echo -e "\n❌ $*" >&2; exit 1; }
 
-# 1) Env checks
+# ── 1) Mandatory environment variables (from GitHub Secrets) ───────
 : "${GHCR_USER:?GHCR_USER must be set}"
 : "${GHCR_TOKEN:?GHCR_TOKEN must be set}"
 : "${RUNPOD_API_KEY:?RUNPOD_API_KEY must be set}"
 : "${API_AUTH_TOKEN:?API_AUTH_TOKEN must be set}"
 : "${FAISS_INDEX_PATH:?FAISS_INDEX_PATH must be set}"
 
-# 2) Image name
+# ── 2) Prepare image name ─────────────────────────────────────────
 IMAGE="ghcr.io/${GHCR_USER,,}/faiss-gpu-api:latest"
 
-# 3) Build & push
+# ── 3) Install runpodctl CLI if missing ──────────────────────────
+if ! command -v runpodctl &>/dev/null; then
+  log "Installing runpodctl CLI…"
+  curl -s https://cli.runpod.net/install.sh | bash
+  export PATH="$HOME/.runpod:$PATH"
+fi
+
+# ── 4) Log into GHCR, build & push your GPU image ────────────────
 log "Building GPU image…"
-docker build \
-  --no-cache \
-  -f docker/Dockerfile.gpu \
-  -t faiss-gpu-api:latest .
+docker build --no-cache -f docker/Dockerfile.gpu -t faiss-gpu-api:latest .
 
 log "Logging into ghcr.io…"
 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
@@ -28,48 +32,48 @@ log "Tagging & pushing $IMAGE…"
 docker tag faiss-gpu-api:latest "$IMAGE"
 docker push "$IMAGE"
 
-# 4) Spin up a fresh spot pod via GraphQL
-log "Deploying new Spot Pod via RunPod GraphQL…"
-read -r -d '' PAYLOAD <<EOF
-{
-  "query":"mutation DeploySpot(\$in: PodRentInterruptableInput!){ podRentInterruptable(input:\$in){ id name desiredStatus }}",
-  "variables":{
-    "in":{
-      "name":"multi-rag-langgraph-\$(date +%s)",
-      "gpuCount":1,
-      "minVcpuCount":8,
-      "minMemoryInGb":30,
-      "volumeInGb":20,
-      "containerDiskInGb":5,
-      "imageName":"$IMAGE",
-      "gpuTypeId":"NVIDIA RTX 3080 Ti",
-      "ports":"8000/http",
-      "env":[
-        { "key":"API_AUTH_TOKEN",   "value":"$API_AUTH_TOKEN" },
-        { "key":"FAISS_INDEX_PATH", "value":"$FAISS_INDEX_PATH" }
-      ]
-    }
-  }
-}
-EOF
+# ── 5) Tear down any existing Spot Pod with our fixed name ───────
+POD_NAME="multi-rag-langgraph"
+existing=$(runpodctl pod list --apiKey "$RUNPOD_API_KEY" --output json \
+  | jq -r --arg n "$POD_NAME" '.[] | select(.name==$n) | .id')
 
-response=$(curl -fsSL -X POST \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $RUNPOD_API_KEY" \
-  https://api.runpod.io/graphql \
-  -d "$PAYLOAD")
+if [[ -n "$existing" ]]; then
+  log "Deleting old pod $existing…"
+  runpodctl pod delete --apiKey "$RUNPOD_API_KEY" "$existing"
+fi
 
-podId=$(jq -r '.data.podRentInterruptable.id' <<<"$response")
-status=$(jq -r '.data.podRentInterruptable.desiredStatus' <<<"$response")
+# ── 6) Rent a new Spot Pod with our image ────────────────────────
+log "Renting new Spot Pod…"
+new_id=$(runpodctl pod rent-interruptable \
+  --apiKey "$RUNPOD_API_KEY" \
+  --name "$POD_NAME" \
+  --imageName "$IMAGE" \
+  --gpuTypeName "NVIDIA RTX 3080 Ti" \
+  --gpuCount 1 \
+  --vcpu 8 \
+  --memoryGB 30 \
+  --volumeGB 20 \
+  --diskGB 5 \
+  --ports "8000/http" \
+  --env "API_AUTH_TOKEN=$API_AUTH_TOKEN" \
+  --env "FAISS_INDEX_PATH=$FAISS_INDEX_PATH" \
+  --output json \
+  | jq -r '.id')
 
-[[ -n "$podId" && "$status" == "RUNNING" ]] \
-  || fail "GraphQL deploy failed:\n$response"
+if [[ -z "$new_id" ]]; then
+  err "Failed to rent new Spot Pod"
+fi
 
-log "✅ Spot Pod created: ID=$podId (running)"
+# ── 7) Fetch its public IP ───────────────────────────────────────
+public_ip=$(runpodctl pod get --apiKey "$RUNPOD_API_KEY" "$new_id" \
+  --output json | jq -r '.publicIp')
+
+log "✅ Spot Pod created! ID=$new_id  IP=$public_ip"
 
 echo
-echo "Your GPU Image-Search API is booting up. Test it at:"
+echo "Your GPU Image‐Search API is live at http://$public_ip:8000/search"
+echo "Test with:"
 echo "  curl -X POST \\"
 echo "    -H \"Authorization: Bearer $API_AUTH_TOKEN\" \\"
 echo "    -F \"file=@test.jpg\" \\"
-echo "    http://<pod-public-ip>:8000/search?top_k=3"
+echo "    http://$public_ip:8000/search?top_k=3"
