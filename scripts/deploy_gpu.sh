@@ -38,53 +38,54 @@ docker tag faiss-gpu-api:latest "${IMAGE}"
 log "Pushing ${IMAGE}…"
 docker push "${IMAGE}"
 
-# 7) Deploy to RunPod
-REST="https://rest.runpod.io/v1"
+# ─── 7) Deploy to RunPod via REST API ──────────────────────────────────
+REST="https://api.runpod.io/v1"
 
-# 7a) Start pod if not RUNNING
-log "Checking pod status…"
-status_json=$(curl -fsSL -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
-  "${REST}/pods/${RUNPOD_POD_ID}")
-current=$(jq -r '.desiredStatus // "UNKNOWN"' <<<"$status_json")
-log "Pod desiredStatus: $current"
-if [[ "$current" != "RUNNING" ]]; then
+# 7a) Make sure pod is RUNNING
+log "Checking RunPod pod status…"
+status_json=$(curl -fsSL \
+  -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+  "${REST}/pods/${RUNPOD_POD_ID}") || err "Failed to GET pod info"
+DESIRED=$(jq -r '.desiredStatus // "UNKNOWN"' <<<"$status_json")
+log "Pod desiredStatus: $DESIRED"
+if [[ "$DESIRED" != "RUNNING" ]]; then
   log "Starting spot instance…"
   curl -fsSL -X POST \
     -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
     -H "Content-Type: application/json" \
     "${REST}/pods/${RUNPOD_POD_ID}/start" \
-    -d '{}' || err "pod start failed"
-  log "Waiting 30s for pod init…"; sleep 30
+    -d '{}' || err "Pod start failed"
+  log "Waiting 30s for pod init…"
+  sleep 30
 fi
 
-# 7b) Trigger run
-log "Preparing deployment payload…"
-deploy_payload=$(jq -n \
+# 7b) Trigger the new container run
+log "Deploying GPU container to RunPod…"
+DEPLOY_PAYLOAD=$(jq -n \
   --arg image "$IMAGE" \
   --arg token "$API_AUTH_TOKEN" \
   --arg path  "$FAISS_INDEX_PATH" \
   '{
-    image: $image,
-    env: {
-      API_AUTH_TOKEN: $token,
-      FAISS_INDEX_PATH: $path
-    },
-    ports: ["8000/http"]
-  }')
-echo "$deploy_payload" | jq .   #  show exact payload
+     image: $image,
+     env: {
+       API_AUTH_TOKEN: $token,
+       FAISS_INDEX_PATH: $path
+     },
+     ports: ["8000/http"]
+   }')
+echo "$DEPLOY_PAYLOAD" | jq .  # show exactly what we send
 
-log "Deploying to RunPod…"
-http_code=$(curl -s -o /tmp/runpod_resp.json -w "%{http_code}" \
+HTTP_CODE=$(curl -s -o /tmp/runpod_resp.json -w "%{http_code}" \
   -X POST \
   -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
   -H "Content-Type: application/json" \
   "${REST}/pods/${RUNPOD_POD_ID}/run" \
-  -d "$deploy_payload")
+  -d "$DEPLOY_PAYLOAD")
 
-if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
-  log "✅ Successfully deployed (HTTP $http_code)"
+if [[ "$HTTP_CODE" -ge 200 && "$HTTP_CODE" -lt 300 ]]; then
+  log "✅ Successfully deployed (HTTP $HTTP_CODE)"
 else
-  err "RunPod deploy failed (HTTP $http_code). Response:\n$(cat /tmp/runpod_resp.json)"
+  err "RunPod deploy failed (HTTP $HTTP_CODE)\n$(cat /tmp/runpod_resp.json)"
 fi
 
 log "All done—test your GPU API with:"
