@@ -9,7 +9,7 @@ jobs:
   build-test-and-deploy:
     runs-on: ubuntu-latest
     env:
-      # Injected from GitHub Secrets
+      # GPU service secrets
       GHCR_USER:        ${{ secrets.GHCR_USER }}
       GHCR_TOKEN:       ${{ secrets.GHCR_TOKEN }}
       RUNPOD_API_KEY:   ${{ secrets.RUNPOD_API_KEY }}
@@ -40,7 +40,7 @@ jobs:
         run: PYTHONPATH=src pytest src/langgraphagenticai/tests
 
       # ───────────────────────────────────────────────────
-      # Fly.io deploy of CPU-based PDF service
+      # Fly.io deploy for CPU-based PDF service
       - name: ⚙️ Install Fly CLI
         run: |
           curl -L https://fly.io/install.sh | sh
@@ -67,24 +67,24 @@ jobs:
           done
 
       - name: 🎯 PDF Service URL
-        run: echo "https://multi-ai-chatbot.fly.dev"
+        run: echo "✅ PDF service live at https://multi-ai-chatbot.fly.dev"
 
       # ───────────────────────────────────────────────────
-      # GPU image-search via your deploy_gpu.sh
-      - name: 🐳 Setup Docker Buildx (needed inside deploy_gpu.sh)
+      # Prepare Docker for GPU deploy
+      - name: 🐳 Setup Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: 🔐 Docker login for GHCR (needed for deploy_gpu.sh)
+      - name: 🔐 Docker login for GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ env.GHCR_USER }}
           password: ${{ env.GHCR_TOKEN }}
 
-      - name: 🛠 Install jq (needed for deploy_gpu.sh parsing)
+      - name: 🛠 Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: 🚀 Deploy GPU Image-Search Service
+      - name: 🚀 Deploy GPU Image-Search
         run: |
           chmod +x scripts/deploy_gpu.sh
           ./scripts/deploy_gpu.sh
