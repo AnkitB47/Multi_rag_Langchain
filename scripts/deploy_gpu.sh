@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-import os, sys
-import subprocess
+import os, sys, subprocess
 import runpod
 
 # 1) Read env vars
@@ -12,43 +11,38 @@ FAISS_INDEX    = os.environ["FAISS_INDEX_PATH"]
 
 # 2) Build & push Docker image
 image = f"ghcr.io/{GHCR_USER.lower()}/faiss-gpu-api:latest"
+
 subprocess.run([
-    "docker", "build", "-f", "docker/Dockerfile.gpu", "-t", "faiss-gpu-api:latest", "."
+    "docker", "build", "-f", "docker/Dockerfile.gpu",
+    "-t", "faiss-gpu-api:latest", "."
 ], check=True)
-subprocess.run(
+
+login = subprocess.Popen(
     ["docker", "login", "ghcr.io", "-u", GHCR_USER, "--password-stdin"],
-    input=GHCR_TOKEN.encode(), check=True
+    stdin=subprocess.PIPE
 )
+login.communicate(input=GHCR_TOKEN.encode())
+if login.returncode:
+    sys.exit("❌ Docker login failed!")
+
 subprocess.run(["docker", "tag", "faiss-gpu-api:latest", image], check=True)
 subprocess.run(["docker", "push", image], check=True)
 
-# 3) Configure runpod
+# 3) Configure runpod Python SDK
 runpod.api_key = RUNPOD_API_KEY
 
-# 4) Delete old pod if exists
-pods = runpod.get_pods()
-for p in pods:
+# 4) Delete old pod if it exists
+for p in runpod.get_pods():
     if p.name == "multi-rag-langgraph":
         print(f"▶️ Deleting old pod {p.id}")
         runpod.terminate_pod(p.id)
 
-# 5) Create new interruptible (spot) GPU pod
+# 5) Create new GPU pod (spot/interruptible by default)
 print("▶️ Creating new spot pod…")
 pod = runpod.create_pod(
-    name="multi-rag-langgraph",
-    image_name=image,
-    gpu_type="NVIDIA RTX 3080 Ti",
-    gpu_count=1,
-    vcpu_count=8,
-    memory_gb=30,
-    volume_gb=20,
-    container_disk_gb=5,
-    ports=["8000/http"],
-    env={
-        "API_AUTH_TOKEN": API_AUTH_TOKEN,
-        "FAISS_INDEX_PATH": FAISS_INDEX
-    },
-    interruptible=True,
+    "multi-rag-langgraph",
+    image,
+    gpu_type="NVIDIA RTX 3080 Ti"
 )
 
 if pod.status not in ("RUNNING", "RESUMED"):
@@ -56,5 +50,13 @@ if pod.status not in ("RUNNING", "RESUMED"):
     sys.exit(1)
 
 print("✅ Pod created:", pod.id, "IP:", pod.public_ip)
-print(f"Test with: curl -X POST -H \"Authorization: Bearer {API_AUTH_TOKEN}\" "
-      f"-F file=@test.jpg http://{pod.public_ip}:8000/search?top_k=3")
+print(f"""
+🚀GPU Image-Search API is live at:
+  http://{pod.public_ip}:8000/search?top_k=3
+
+  Test it with:
+  curl -X POST \\
+    -H "Authorization: Bearer {API_AUTH_TOKEN}" \\
+    -F file=@test.jpg \\
+    http://{pod.public_ip}:8000/search?top_k=3
+""")
