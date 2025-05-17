@@ -1,101 +1,60 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env python3
+import os, sys
+import subprocess
+import runpod
 
-log()  { echo -e "\n▶️  $*"; }
-fail() { echo -e "\n❌ $*" >&2; exit 1; }
+# 1) Read env vars
+GHCR_USER      = os.environ["GHCR_USER"]
+GHCR_TOKEN     = os.environ["GHCR_TOKEN"]
+RUNPOD_API_KEY = os.environ["RUNPOD_API_KEY"]
+API_AUTH_TOKEN = os.environ["API_AUTH_TOKEN"]
+FAISS_INDEX    = os.environ["FAISS_INDEX_PATH"]
 
-#───────────────────────────────────────────────────────────
-# 1) Required env vars (set these from GitHub Actions secrets)
-#───────────────────────────────────────────────────────────
-: "${GHCR_USER:?GHCR_USER must be set}"
-: "${GHCR_TOKEN:?GHCR_TOKEN must be set}"
-: "${RUNPOD_API_KEY:?RUNPOD_API_KEY must be set}"
-: "${API_AUTH_TOKEN:?API_AUTH_TOKEN must be set}"
-: "${FAISS_INDEX_PATH:?FAISS_INDEX_PATH must be set}"
+# 2) Build & push Docker image
+image = f"ghcr.io/{GHCR_USER.lower()}/faiss-gpu-api:latest"
+subprocess.run([
+    "docker", "build", "-f", "docker/Dockerfile.gpu", "-t", "faiss-gpu-api:latest", "."
+], check=True)
+subprocess.run(
+    ["docker", "login", "ghcr.io", "-u", GHCR_USER, "--password-stdin"],
+    input=GHCR_TOKEN.encode(), check=True
+)
+subprocess.run(["docker", "tag", "faiss-gpu-api:latest", image], check=True)
+subprocess.run(["docker", "push", image], check=True)
 
-#───────────────────────────────────────────────────────────
-# 2) Prepare image name
-#───────────────────────────────────────────────────────────
-IMAGE="ghcr.io/${GHCR_USER,,}/faiss-gpu-api:latest"
+# 3) Configure runpod
+runpod.api_key = RUNPOD_API_KEY
 
-#───────────────────────────────────────────────────────────
-# 3) Install the official runpodctl CLI if missing
-#───────────────────────────────────────────────────────────
-if ! command -v runpodctl &> /dev/null; then
-  log "Installing runpodctl CLI…"
-  wget -qO- cli.runpod.net | sudo bash         # ❌ DO NOT use GitHub raw URLs!
-fi
+# 4) Delete old pod if exists
+pods = runpod.get_pods()
+for p in pods:
+    if p.name == "multi-rag-langgraph":
+        print(f"▶️ Deleting old pod {p.id}")
+        runpod.terminate_pod(p.id)
 
-# 4) Make sure config directory exists & then configure your API key
-log "Configuring runpodctl…"
-mkdir -p "$HOME/.runpod"
-runpodctl config --apiKey="$RUNPOD_API_KEY"
+# 5) Create new interruptible (spot) GPU pod
+print("▶️ Creating new spot pod…")
+pod = runpod.create_pod(
+    name="multi-rag-langgraph",
+    image_name=image,
+    gpu_type="NVIDIA RTX 3080 Ti",
+    gpu_count=1,
+    vcpu_count=8,
+    memory_gb=30,
+    volume_gb=20,
+    container_disk_gb=5,
+    ports=["8000/http"],
+    env={
+        "API_AUTH_TOKEN": API_AUTH_TOKEN,
+        "FAISS_INDEX_PATH": FAISS_INDEX
+    },
+    interruptible=True,
+)
 
-#───────────────────────────────────────────────────────────
-# 5) Build & push your GPU Docker image
-#───────────────────────────────────────────────────────────
-log "Building GPU image…"
-docker build \
-  --no-cache \
-  -f docker/Dockerfile.gpu \
-  -t faiss-gpu-api:latest \
-  .
+if pod.status not in ("RUNNING", "RESUMED"):
+    print("❌ Pod did not start:", pod)
+    sys.exit(1)
 
-log "Logging into ghcr.io…"
-echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
-
-log "Tagging & pushing ${IMAGE}…"
-docker tag faiss-gpu-api:latest "${IMAGE}"
-docker push "${IMAGE}"
-
-#───────────────────────────────────────────────────────────
-# 6) Rent a fresh Spot Pod via RunPod GraphQL ─────────────
-#───────────────────────────────────────────────────────────
-# We use the real GraphQL endpoint: https://api.runpod.io/graphql
-
-read -r -d '' PAYLOAD <<EOF
-{
-  "query": "mutation RentSpot(\$in: PodRentInterruptableInput!) { podRentInterruptable(input:\$in) { id publicIp desiredStatus } }",
-  "variables": {
-    "in": {
-      "name": "gpu-search-$(date +%s)",
-      "gpuCount": 1,
-      "minVcpuCount": 8,
-      "minMemoryInGb": 30,
-      "volumeInGb": 20,
-      "containerDiskInGb": 5,
-      "imageName": "${IMAGE}",
-      "gpuTypeId": "NVIDIA RTX 3080 Ti",
-      "ports": "8000/http",
-      "env": [
-        { "key": "API_AUTH_TOKEN",   "value": "${API_AUTH_TOKEN}" },
-        { "key": "FAISS_INDEX_PATH", "value": "${FAISS_INDEX_PATH}" }
-      ]
-    }
-  }
-}
-EOF
-
-log "Renting new Spot Pod via GraphQL…"
-resp=$(curl -fsSL \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
-  https://api.runpod.io/graphql \
-  -d "${PAYLOAD}")
-
-podId=$(jq -r .data.podRentInterruptable.id    <<<"$resp")
-ip=$(jq -r .data.podRentInterruptable.publicIp <<<"$resp")
-status=$(jq -r .data.podRentInterruptable.desiredStatus<<<"$resp")
-
-[[ "$podId" != "null" && "$status" == "RUNNING" ]] \
-  || fail "Failed to rent spot pod:\n$resp"
-
-log "✅ Pod created! ID=$podId  IP=$ip"
-
-echo
-echo "🖼  GPU Image-Search API is now live at:"
-echo "   http://${ip}:8000/search?top_k=3"
-echo "   curl -X POST \\"
-echo "     -H \"Authorization: Bearer ${API_AUTH_TOKEN}\" \\"
-echo "     -F \"file=@test.jpg\" \\"
-echo "     http://${ip}:8000/search?top_k=3"
+print("✅ Pod created:", pod.id, "IP:", pod.public_ip)
+print(f"Test with: curl -X POST -H \"Authorization: Bearer {API_AUTH_TOKEN}\" "
+      f"-F file=@test.jpg http://{pod.public_ip}:8000/search?top_k=3")
