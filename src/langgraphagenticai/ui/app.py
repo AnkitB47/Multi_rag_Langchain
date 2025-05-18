@@ -6,6 +6,7 @@ from PIL import Image
 import io
 from datetime import datetime
 import logging
+from typing import Optional  # Added this import
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

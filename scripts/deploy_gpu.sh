@@ -79,7 +79,6 @@ for attempt in range(CONFIG["max_retries"]):
             support_public_ip=True,
             min_vcpu_count=CONFIG["min_vcpu"],
             min_memory_in_gb=CONFIG["min_memory_gb"],
-            bid_percent=50
         )
 
         # Handle response format
