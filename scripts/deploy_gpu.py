@@ -52,11 +52,6 @@ def deploy_pod():
     pod = runpod.create_pod(
         name=CONFIG["service_name"],
         image_name=image_name,
-        container_registry_auth={
-            "username": os.environ["GHCR_USER"],
-            "password": os.environ["GHCR_TOKEN"],
-            "server": "ghcr.io"
-        },
         gpu_type_id=CONFIG["gpu_type"],
         cloud_type="SECURE",
         gpu_count=1,
