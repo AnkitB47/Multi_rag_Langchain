@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 CONFIG = {
     "service_name": "multi-rag-image-service",
     "service_port": 8000,
-    "gpu_type": "NVIDIA GeForce RTX 3080 Ti",
+    "gpu_type": "NVIDIA RTX A5000",
     "volume_size_gb": 50,
     "container_disk_gb": 20,
     "min_vcpu": 8,
