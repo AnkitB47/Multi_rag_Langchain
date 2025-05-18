@@ -29,7 +29,7 @@ COPY docker/auto_terminate.sh /app/auto_terminate.sh
 RUN chmod +x /app/auto_terminate.sh
 
 # ──── FAISS INDEX PRELOAD ───────────────────────────────
-RUN mkdir -p /data && chmod 777 /data
+RUN mkdir -p /data/images && chmod 777 /data
 ENV FAISS_INDEX_PATH=/data/vector.index
 
 # ──── API SERVER ────────────────────────────────────────
