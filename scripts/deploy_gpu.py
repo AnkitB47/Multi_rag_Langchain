@@ -17,17 +17,20 @@ CONFIG = {
 
 def verify_ghcr_access():
     """Verify GHCR credentials and image accessibility"""
-    image_name = os.environ["IMAGE_NAME"].lower()  # Force lowercase
+    image_name = os.environ["IMAGE_NAME"]  # Already lowercase from workflow
     try:
-        subprocess.run(
+        result = subprocess.run(
             ["docker", "pull", image_name],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            capture_output=True,
+            text=True,
+            check=True
         )
+        if "manifest unknown" in result.stderr:
+            raise RuntimeError("Image not found in registry")
         print("✅ Verified GHCR image accessibility")
         return True
     except subprocess.CalledProcessError as e:
+        print(f"❌ Docker pull failed. Output:\n{e.stderr}")
         raise RuntimeError(f"Failed to access GHCR image: {str(e)}")
 
 def terminate_existing_pods():
@@ -43,7 +46,7 @@ def terminate_existing_pods():
 def deploy_pod():
     """Deploy new pod with all required configuration"""
     terminate_time = datetime.now() + timedelta(minutes=CONFIG["pod_lifetime_minutes"])
-    image_name = os.environ["IMAGE_NAME"].lower()  # Force lowercase
+    image_name = os.environ["IMAGE_NAME"]
     
     print("🚀 Deploying new pod...")
     pod = runpod.create_pod(
