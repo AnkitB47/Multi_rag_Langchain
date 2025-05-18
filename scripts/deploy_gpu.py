@@ -17,18 +17,18 @@ CONFIG = {
 
 def verify_ghcr_access():
     """Verify GHCR credentials and image accessibility"""
+    image_name = os.environ["IMAGE_NAME"].lower()  # Force lowercase
     try:
-        # Verify image exists
         subprocess.run(
-            ["docker", "pull", os.environ["IMAGE_NAME"]],
+            ["docker", "pull", image_name],
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
         print("✅ Verified GHCR image accessibility")
         return True
-    except subprocess.CalledProcessError:
-        raise RuntimeError("Failed to access GHCR image - check credentials and image exists")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Failed to access GHCR image: {str(e)}")
 
 def terminate_existing_pods():
     """Clean up any existing pods with matching name"""
@@ -43,11 +43,12 @@ def terminate_existing_pods():
 def deploy_pod():
     """Deploy new pod with all required configuration"""
     terminate_time = datetime.now() + timedelta(minutes=CONFIG["pod_lifetime_minutes"])
+    image_name = os.environ["IMAGE_NAME"].lower()  # Force lowercase
     
     print("🚀 Deploying new pod...")
     pod = runpod.create_pod(
         name=CONFIG["service_name"],
-        image_name=os.environ["IMAGE_NAME"],
+        image_name=image_name,
         container_registry_auth={
             "username": os.environ["GHCR_USER"],
             "password": os.environ["GHCR_TOKEN"],
@@ -64,7 +65,6 @@ def deploy_pod():
             "API_AUTH_TOKEN": os.environ["API_AUTH_TOKEN"],
             "FAISS_INDEX_PATH": os.environ["FAISS_INDEX_PATH"],
             "TERMINATE_AT": terminate_time.isoformat(),
-            "GPU_API_URL": os.environ.get("GPU_API_URL", ""),
             "SERVICE_TYPE": "image",
             "PORT": str(CONFIG["service_port"])
         },
