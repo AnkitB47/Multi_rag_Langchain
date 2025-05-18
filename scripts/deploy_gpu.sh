@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-import os, sys, subprocess
+import os
+import sys
+import subprocess
 import runpod
-from time import sleep
+from datetime import datetime, timedelta
 
-# Configuration
 CONFIG = {
     "service_name": "multi-rag-image-service",
     "service_port": 8000,
@@ -12,96 +13,86 @@ CONFIG = {
     "container_disk_gb": 20,
     "min_vcpu": 8,
     "min_memory_gb": 30,
-    "max_retries": 3,
-    "retry_delay": 30
+    "pod_lifetime_minutes": 60
 }
 
-# 1) Read env vars
-GHCR_USER = os.environ["GHCR_USER"]
-GHCR_TOKEN = os.environ["GHCR_TOKEN"]
-RUNPOD_API_KEY = os.environ["RUNPOD_API_KEY"]
-API_AUTH_TOKEN = os.environ["API_AUTH_TOKEN"]
-FAISS_INDEX = os.environ["FAISS_INDEX_PATH"]
+def build_and_push_image():
+    """Build and push Docker image using GitHub Secrets"""
+    image = f"ghcr.io/{os.environ['GHCR_USER'].lower()}/faiss-gpu-api:latest"
+    
+    subprocess.run([
+        "docker", "build", "-f", "docker/Dockerfile.gpu",
+        "-t", image, "."
+    ], check=True)
+    
+    subprocess.run(["docker", "push", image], check=True)
+    return image
 
-# 2) Build & push Docker image
-image = f"ghcr.io/{GHCR_USER.lower()}/faiss-gpu-api:latest"
+def terminate_existing_pods():
+    """Clean up any existing pods"""
+    print("🔍 Checking for existing pods...")
+    for pod in runpod.get_pods():
+        pod_id = pod.get('id') if isinstance(pod, dict) else getattr(pod, 'id', None)
+        if pod_id and (pod.get('name') == CONFIG["service_name"] or 
+                      getattr(pod, 'name', None) == CONFIG["service_name"]):
+            print(f"🗑️ Terminating existing pod {pod_id}")
+            runpod.terminate_pod(pod_id)
 
-subprocess.run([
-    "docker", "build", "-f", "docker/Dockerfile.gpu",
-    "-t", "faiss-gpu-api:latest", "."
-], check=True)
+def deploy_pod(image):
+    """Deploy new pod with all required secrets"""
+    terminate_time = datetime.now() + timedelta(minutes=CONFIG["pod_lifetime_minutes"])
+    
+    print("🚀 Deploying new pod...")
+    pod = runpod.create_pod(
+        name=CONFIG["service_name"],
+        image_name=image,
+        gpu_type_id=CONFIG["gpu_type"],
+        cloud_type="SECURE",
+        gpu_count=1,
+        volume_in_gb=CONFIG["volume_size_gb"],
+        container_disk_in_gb=CONFIG["container_disk_gb"],
+        ports=f"{CONFIG['service_port']}/http",
+        volume_mount_path="/data",
+        env={
+            # Required core variables
+            "API_AUTH_TOKEN": os.environ["API_AUTH_TOKEN"],
+            "FAISS_INDEX_PATH": os.environ["FAISS_INDEX_PATH"],
+            "TERMINATE_AT": terminate_time.isoformat(),
+            
+            # All other secrets your app needs
+            "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
+            "GROQ_API_KEY": os.environ.get("GROQ_API_KEY", ""),
+            "HF_TOKEN": os.environ.get("HF_TOKEN", ""),
+            "RUNPOD_API_KEY": os.environ["RUNPOD_API_KEY"],
+            
+            # Add any other required environment variables
+            "SERVICE_TYPE": "image",
+            "PORT": str(CONFIG["service_port"])
+        },
+        support_public_ip=True,
+        min_vcpu_count=CONFIG["min_vcpu"],
+        min_memory_in_gb=CONFIG["min_memory_gb"]
+    )
+    
+    pod_id = pod.id if hasattr(pod, 'id') else pod['id']
+    print(f"✅ Pod deployed successfully. ID: {pod_id}")
+    print(f"⏰ Will auto-terminate at: {terminate_time}")
+    
+    return pod_id
 
-login = subprocess.Popen(
-    ["docker", "login", "ghcr.io", "-u", GHCR_USER, "--password-stdin"],
-    stdin=subprocess.PIPE
-)
-login.communicate(input=GHCR_TOKEN.encode())
-if login.returncode:
-    sys.exit("❌ Docker login failed!")
+if __name__ == "__main__":
+    # Verify required secrets
+    required_secrets = ["GHCR_USER", "GHCR_TOKEN", "RUNPOD_API_KEY", 
+                       "API_AUTH_TOKEN", "FAISS_INDEX_PATH"]
+    missing = [secret for secret in required_secrets if secret not in os.environ]
+    if missing:
+        sys.exit(f"❌ Missing required secrets: {', '.join(missing)}")
 
-subprocess.run(["docker", "tag", "faiss-gpu-api:latest", image], check=True)
-subprocess.run(["docker", "push", image], check=True)
-
-# 3) Configure runpod SDK
-runpod.api_key = RUNPOD_API_KEY
-
-# 4) Delete old pod if exists
-print("▶️ Cleaning up existing pods...")
-for p in runpod.get_pods():
-    if isinstance(p, dict):
-        if p.get('name') == CONFIG["service_name"]:
-            print(f"Deleting pod {p['id']}")
-            runpod.terminate_pod(p['id'])
-    elif hasattr(p, 'name') and p.name == CONFIG["service_name"]:
-        print(f"Deleting pod {p.id}")
-        runpod.terminate_pod(p.id)
-
-# 5) Create new pod
-print(f"▶️ Creating new pod with {CONFIG['gpu_type']}...")
-for attempt in range(CONFIG["max_retries"]):
+    runpod.api_key = os.environ["RUNPOD_API_KEY"]
+    
     try:
-        pod = runpod.create_pod(
-            name=CONFIG["service_name"],
-            image_name=image,
-            gpu_type_id=CONFIG["gpu_type"],
-            cloud_type="SECURE",
-            gpu_count=1,
-            volume_in_gb=CONFIG["volume_size_gb"],
-            container_disk_in_gb=CONFIG["container_disk_gb"],
-            ports=f"{CONFIG['service_port']}/http",
-            volume_mount_path="/data",
-            env={
-                "API_AUTH_TOKEN": API_AUTH_TOKEN,
-                "FAISS_INDEX_PATH": FAISS_INDEX,
-                "SERVICE_TYPE": "image",
-                "PORT": str(CONFIG["service_port"])
-            },
-            support_public_ip=True,
-            min_vcpu_count=CONFIG["min_vcpu"],
-            min_memory_in_gb=CONFIG["min_memory_gb"],
-        )
-
-        # Handle response format
-        pod_id = pod.id if hasattr(pod, 'id') else pod['data']['podFindAndDeployOnDemand']['id']
-        
-        # Wait for pod to be ready
-        print(f"🔄 Waiting for pod {pod_id} to be ready...")
-        for _ in range(10):  # Wait up to 5 minutes
-            sleep(30)
-            current_pod = runpod.get_pod(pod_id)
-            if current_pod and current_pod.status in ("RUNNING", "RESUMED"):
-                public_ip = current_pod.public_ip
-                print(f"✅ Pod ready at {public_ip}")
-                print(f"🚀 Image service available at: http://{public_ip}:{CONFIG['service_port']}")
-                sys.exit(0)
-        
-        print(f"⚠️ Pod not ready after waiting. Status: {current_pod.status if current_pod else 'unknown'}")
-        runpod.terminate_pod(pod_id)
-        
+        image = build_and_push_image()
+        terminate_existing_pods()
+        deploy_pod(image)
     except Exception as e:
-        print(f"⚠️ Attempt {attempt + 1} failed: {str(e)}")
-        if attempt < CONFIG["max_retries"] - 1:
-            print(f"🔄 Retrying in {CONFIG['retry_delay']} seconds...")
-            sleep(CONFIG["retry_delay"])
-
-sys.exit("❌ Failed to create pod after multiple attempts")
+        sys.exit(f"❌ Deployment failed: {str(e)}")

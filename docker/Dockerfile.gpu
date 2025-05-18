@@ -9,20 +9,22 @@ RUN apt-get update && \
       python3.10 \
       python3-pip \
       libopenblas-dev \
-      apt-utils && \
+      apt-utils \
+      cron && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PIP_ROOT_USER_ACTION=ignore \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # ──── PYTHON DEPENDENCIES ───────────────────────────────
-# copy the renamed file from docker/
 COPY docker/requirements.gpu.txt /app/requirements.gpu.txt
 RUN pip install --no-cache-dir --upgrade pip wheel setuptools && \
     pip install --no-cache-dir --use-pep517 -r requirements.gpu.txt
 
 # ──── APP CODE ──────────────────────────────────────────
 COPY src/ /app/src
+COPY docker/auto_terminate.sh /app/auto_terminate.sh
+RUN chmod +x /app/auto_terminate.sh
 
 # ──── FAISS INDEX PRELOAD ───────────────────────────────
 RUN mkdir -p /data && chmod 777 /data
@@ -30,4 +32,4 @@ ENV FAISS_INDEX_PATH=/data/vector.index
 
 # ──── API SERVER ────────────────────────────────────────
 EXPOSE 8000
-CMD ["uvicorn", "src.api.gpu_server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "/app/auto_terminate.sh & uvicorn src.api.gpu_server:app --host 0.0.0.0 --port 8000"]

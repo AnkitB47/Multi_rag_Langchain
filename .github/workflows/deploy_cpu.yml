@@ -22,9 +22,9 @@ jobs:
 
       - name: 📦 Install deps
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r docker/requirements.txt
-          pip install flake8 pytest types-requests  # Added types-requests for better type checking
+          pip install flake8 pytest types-requests  
 
       - name: ✅ Lint
         run: |
@@ -41,13 +41,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: ⚙️ Install Fly CLI
+      - name: ⚙️ Upgrade Fly CLI (latest stable)
         run: |
           curl -L https://fly.io/install.sh | sh
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
-      - name: 🔐 Fly Login
-        run: flyctl auth login --access-token "$FLY_API_TOKEN"
+      - name: 🔐 Authenticate with Fly.io
+        run: flyctl auth login --access-token "${{ secrets.FLY_API_TOKEN }}"
 
       - name: 🚀 Deploy PDF service
         run: |
