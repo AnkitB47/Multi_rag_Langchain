@@ -2,48 +2,74 @@ name: 🚀 CI/CD – GPU Image-Search Service
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
 env:
+  SERVICE_NAME: multi-rag-image-service
+  IMAGE_NAME: ghcr.io/${{ secrets.GHCR_USER }}/${{ 'faiss-gpu-api' }}:latest
   GPU_SERVICE_PORT: 8000
-  SERVICE_TYPE: "image"
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      GHCR_USER: ${{ secrets.GHCR_USER }}
-      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
-      API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
-      FAISS_INDEX_PATH: ${{ secrets.FAISS_INDEX_PATH }}
+
     steps:
-      - uses: actions/checkout@v3
+    - name: 📥 Checkout code
+      uses: actions/checkout@v3
 
-      - name: 🐳 Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+    - name: 🐍 Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
 
-      - name: 🐍 Install RunPod SDK
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-          pip install runpod
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
 
-      - name: 🔐 Log in to GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ env.GHCR_USER }}
-          password: ${{ env.GHCR_TOKEN }}
+    - name: 🧹 Clean up unused Docker objects
+      run: docker system prune -f --filter "until=24h"
 
-      - name: 🚀 Build, push & deploy
-        env: 
-          GHCR_USER: ${{ secrets.GHCR_USER }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
-          API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
-          FAISS_INDEX_PATH: ${{ secrets.FAISS_INDEX_PATH }}
-        run: |
-          chmod +x scripts/deploy_gpu.sh
-          ./scripts/deploy_gpu.sh
+    - name: 🛠 Install dependencies (runpod SDK + jq)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq
+        pip install runpod
+
+    - name: ✅ Verify GHCR pull token & tags
+      env:
+        GHCR_USER: ${{ secrets.GHCR_USER }}
+        GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+      run: |
+        TOKEN=$(curl -su "$GHCR_USER:$GHCR_TOKEN" \
+          "https://ghcr.io/token?service=ghcr.io&scope=repository:${GHCR_USER,,}/faiss-gpu-api:pull" \
+          | jq -r .token)
+        curl -H "Authorization: Bearer $TOKEN" \
+          https://ghcr.io/v2/${GHCR_USER,,}/faiss-gpu-api/tags/list
+
+    - name: 🚀 Build, Tag & Push GPU Image
+      env:
+        GHCR_USER:  ${{ secrets.GHCR_USER }}
+        GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        IMAGE_NAME: ${{ env.IMAGE_NAME }}
+      run: |
+        # login
+        echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+        # build
+        docker build \
+          --no-cache \
+          -f docker/Dockerfile.gpu \
+          -t "$IMAGE_NAME" \
+          .
+        # push
+        docker push "$IMAGE_NAME"
+
+    - name: 🚀 Deploy GPU service on RunPod
+      env:
+        GHCR_USER:        ${{ secrets.GHCR_USER }}
+        GHCR_TOKEN:       ${{ secrets.GHCR_TOKEN }}
+        RUNPOD_API_KEY:   ${{ secrets.RUNPOD_API_KEY }}
+        API_AUTH_TOKEN:   ${{ secrets.API_AUTH_TOKEN }}
+        FAISS_INDEX_PATH: ${{ secrets.FAISS_INDEX_PATH }}
+        GPU_API_URL:      ${{ secrets.GPU_API_URL }}
+      run: |
+        python3 scripts/deploy_gpu.py

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import sys
 import subprocess
@@ -16,20 +15,23 @@ CONFIG = {
     "pod_lifetime_minutes": 60
 }
 
-def build_and_push_image():
-    """Build and push Docker image using GitHub Secrets"""
-    image = f"ghcr.io/{os.environ['GHCR_USER'].lower()}/faiss-gpu-api:latest"
-    
-    subprocess.run([
-        "docker", "build", "-f", "docker/Dockerfile.gpu",
-        "-t", image, "."
-    ], check=True)
-    
-    subprocess.run(["docker", "push", image], check=True)
-    return image
+def verify_ghcr_access():
+    """Verify GHCR credentials and image accessibility"""
+    try:
+        # Verify image exists
+        subprocess.run(
+            ["docker", "pull", os.environ["IMAGE_NAME"]],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        print("✅ Verified GHCR image accessibility")
+        return True
+    except subprocess.CalledProcessError:
+        raise RuntimeError("Failed to access GHCR image - check credentials and image exists")
 
 def terminate_existing_pods():
-    """Clean up any existing pods"""
+    """Clean up any existing pods with matching name"""
     print("🔍 Checking for existing pods...")
     for pod in runpod.get_pods():
         pod_id = pod.get('id') if isinstance(pod, dict) else getattr(pod, 'id', None)
@@ -38,14 +40,19 @@ def terminate_existing_pods():
             print(f"🗑️ Terminating existing pod {pod_id}")
             runpod.terminate_pod(pod_id)
 
-def deploy_pod(image):
-    """Deploy new pod with all required secrets"""
+def deploy_pod():
+    """Deploy new pod with all required configuration"""
     terminate_time = datetime.now() + timedelta(minutes=CONFIG["pod_lifetime_minutes"])
     
     print("🚀 Deploying new pod...")
     pod = runpod.create_pod(
         name=CONFIG["service_name"],
-        image_name=image,
+        image_name=os.environ["IMAGE_NAME"],
+        container_registry_auth={
+            "username": os.environ["GHCR_USER"],
+            "password": os.environ["GHCR_TOKEN"],
+            "server": "ghcr.io"
+        },
         gpu_type_id=CONFIG["gpu_type"],
         cloud_type="SECURE",
         gpu_count=1,
@@ -54,18 +61,10 @@ def deploy_pod(image):
         ports=f"{CONFIG['service_port']}/http",
         volume_mount_path="/data",
         env={
-            # Required core variables
             "API_AUTH_TOKEN": os.environ["API_AUTH_TOKEN"],
             "FAISS_INDEX_PATH": os.environ["FAISS_INDEX_PATH"],
             "TERMINATE_AT": terminate_time.isoformat(),
-            
-            # All other secrets your app needs
-            "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
-            "GROQ_API_KEY": os.environ.get("GROQ_API_KEY", ""),
-            "HF_TOKEN": os.environ.get("HF_TOKEN", ""),
-            "RUNPOD_API_KEY": os.environ["RUNPOD_API_KEY"],
-            
-            # Add any other required environment variables
+            "GPU_API_URL": os.environ.get("GPU_API_URL", ""),
             "SERVICE_TYPE": "image",
             "PORT": str(CONFIG["service_port"])
         },
@@ -77,22 +76,23 @@ def deploy_pod(image):
     pod_id = pod.id if hasattr(pod, 'id') else pod['id']
     print(f"✅ Pod deployed successfully. ID: {pod_id}")
     print(f"⏰ Will auto-terminate at: {terminate_time}")
-    
     return pod_id
 
 if __name__ == "__main__":
-    # Verify required secrets
-    required_secrets = ["GHCR_USER", "GHCR_TOKEN", "RUNPOD_API_KEY", 
-                       "API_AUTH_TOKEN", "FAISS_INDEX_PATH"]
-    missing = [secret for secret in required_secrets if secret not in os.environ]
+    # Verify required environment variables
+    required_vars = [
+        "GHCR_USER", "GHCR_TOKEN", "RUNPOD_API_KEY",
+        "API_AUTH_TOKEN", "FAISS_INDEX_PATH", "IMAGE_NAME"
+    ]
+    missing = [var for var in required_vars if var not in os.environ]
     if missing:
-        sys.exit(f"❌ Missing required secrets: {', '.join(missing)}")
+        sys.exit(f"❌ Missing required environment variables: {', '.join(missing)}")
 
     runpod.api_key = os.environ["RUNPOD_API_KEY"]
     
     try:
-        image = build_and_push_image()
+        verify_ghcr_access()
         terminate_existing_pods()
-        deploy_pod(image)
+        deploy_pod()
     except Exception as e:
         sys.exit(f"❌ Deployment failed: {str(e)}")
