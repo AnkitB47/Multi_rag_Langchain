@@ -2,8 +2,12 @@ name: 🚀 CI/CD – PDF Service (CPU)
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
+
+env:
+  PDF_SERVICE_PORT: 8001
+  SERVICE_TYPE: "pdf"
 
 jobs:
   build-lint-test:
@@ -13,8 +17,8 @@ jobs:
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@v4
-        with: 
-            python-version: '3.10'
+        with:
+          python-version: '3.10'
 
       - name: 📦 Install deps
         run: |
@@ -31,6 +35,8 @@ jobs:
   deploy-fly:
     needs: build-lint-test
     runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
       - uses: actions/checkout@v3
 
@@ -40,26 +46,20 @@ jobs:
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: 🔐 Fly Login
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl auth login --access-token "$FLY_API_TOKEN"
 
       - name: 🚀 Deploy PDF service
         run: |
-          retry=3; count=0
-          until flyctl deploy . \
-               --remote-only \
-               --dockerfile docker/Dockerfile.cpu \
-               --strategy immediate \
-               -a multi-ai-chatbot; do
-            count=$((count+1))
-            if [ $count -eq $retry ]; then
-              echo "❌ Fly deployment failed after $retry attempts" >&2
-              exit 1
-            fi
-            echo "🔁 Retrying Fly deploy (#$count)…"
-            sleep 10
-          done
+          flyctl deploy . \
+            --remote-only \
+            --dockerfile docker/Dockerfile.cpu \
+            --strategy immediate \
+            -a multi-ai-chatbot \
+            --env SERVICE_TYPE=pdf \
+            --env PORT=$PDF_SERVICE_PORT \
+            --env FAISS_INDEX_PATH=/data/pdf_index
 
-      - name: 🎯 URL
-        run: echo "✅ PDF service live at https://multi-ai-chatbot.fly.dev"
+      - name: 🎯 Store Service URL
+        run: |
+          echo "PDF_SERVICE_URL=https://multi-ai-chatbot.fly.dev" >> $GITHUB_ENV
+          echo "✅ PDF service live at $PDF_SERVICE_URL"

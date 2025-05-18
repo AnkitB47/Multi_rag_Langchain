@@ -3,6 +3,19 @@ import os, sys, subprocess
 import runpod
 from time import sleep
 
+# Configuration
+CONFIG = {
+    "service_name": "multi-rag-image-service",
+    "service_port": 8000,
+    "gpu_type": "NVIDIA GeForce RTX 3080 Ti",
+    "volume_size_gb": 50,
+    "container_disk_gb": 20,
+    "min_vcpu": 8,
+    "min_memory_gb": 30,
+    "max_retries": 3,
+    "retry_delay": 30
+}
+
 # 1) Read env vars
 GHCR_USER = os.environ["GHCR_USER"]
 GHCR_TOKEN = os.environ["GHCR_TOKEN"]
@@ -32,107 +45,64 @@ subprocess.run(["docker", "push", image], check=True)
 # 3) Configure runpod SDK
 runpod.api_key = RUNPOD_API_KEY
 
-# 4) Delete old pod if it exists
+# 4) Delete old pod if exists
+print("▶️ Cleaning up existing pods...")
 for p in runpod.get_pods():
-    if p.name == "multi-rag-langgraph":
-        print(f"▶️ Deleting old pod {p.id}")
+    if isinstance(p, dict):
+        if p.get('name') == CONFIG["service_name"]:
+            print(f"Deleting pod {p['id']}")
+            runpod.terminate_pod(p['id'])
+    elif hasattr(p, 'name') and p.name == CONFIG["service_name"]:
+        print(f"Deleting pod {p.id}")
         runpod.terminate_pod(p.id)
 
-# 5) Define GPU priority list with fallback options
-GPU_PRIORITY_LIST = [
-    "NVIDIA GeForce RTX 3080 Ti",  # First choice
-    "NVIDIA GeForce RTX 3080",     # Second choice
-    "NVIDIA RTX A4000",            # Third choice
-    "NVIDIA GeForce RTX 3090",     # Fourth choice
-    "NVIDIA GeForce RTX 3070",     # Fifth choice
-    "NVIDIA RTX A5000"            # Final fallback
-]
+# 5) Create new pod
+print(f"▶️ Creating new pod with {CONFIG['gpu_type']}...")
+for attempt in range(CONFIG["max_retries"]):
+    try:
+        pod = runpod.create_pod(
+            name=CONFIG["service_name"],
+            image_name=image,
+            gpu_type_id=CONFIG["gpu_type"],
+            cloud_type="SECURE",
+            gpu_count=1,
+            volume_in_gb=CONFIG["volume_size_gb"],
+            container_disk_in_gb=CONFIG["container_disk_gb"],
+            ports=f"{CONFIG['service_port']}/http",
+            volume_mount_path="/data",
+            env={
+                "API_AUTH_TOKEN": API_AUTH_TOKEN,
+                "FAISS_INDEX_PATH": FAISS_INDEX,
+                "SERVICE_TYPE": "image",
+                "PORT": str(CONFIG["service_port"])
+            },
+            support_public_ip=True,
+            min_vcpu_count=CONFIG["min_vcpu"],
+            min_memory_in_gb=CONFIG["min_memory_gb"],
+            bid_percent=50
+        )
 
-# 6) Try creating pod with different GPUs
-max_retries = 3
-retry_delay = 30  # seconds
-pod = None
+        # Handle response format
+        pod_id = pod.id if hasattr(pod, 'id') else pod['data']['podFindAndDeployOnDemand']['id']
+        
+        # Wait for pod to be ready
+        print(f"🔄 Waiting for pod {pod_id} to be ready...")
+        for _ in range(10):  # Wait up to 5 minutes
+            sleep(30)
+            current_pod = runpod.get_pod(pod_id)
+            if current_pod and current_pod.status in ("RUNNING", "RESUMED"):
+                public_ip = current_pod.public_ip
+                print(f"✅ Pod ready at {public_ip}")
+                print(f"🚀 Image service available at: http://{public_ip}:{CONFIG['service_port']}")
+                sys.exit(0)
+        
+        print(f"⚠️ Pod not ready after waiting. Status: {current_pod.status if current_pod else 'unknown'}")
+        runpod.terminate_pod(pod_id)
+        
+    except Exception as e:
+        print(f"⚠️ Attempt {attempt + 1} failed: {str(e)}")
+        if attempt < CONFIG["max_retries"] - 1:
+            print(f"🔄 Retrying in {CONFIG['retry_delay']} seconds...")
+            sleep(CONFIG["retry_delay"])
 
-for attempt in range(max_retries):
-    for gpu_type in GPU_PRIORITY_LIST:
-        try:
-            print(f"▶️ Attempt {attempt + 1}: Trying GPU {gpu_type}...")
-            response = runpod.create_pod(
-                name="multi-rag-langgraph",
-                image_name=image,
-                gpu_type_id=gpu_type,
-                cloud_type="SECURE",
-                gpu_count=1,
-                volume_in_gb=50,
-                container_disk_in_gb=20,
-                ports="8000/http",
-                volume_mount_path="/data",
-                env={
-                    "API_AUTH_TOKEN": API_AUTH_TOKEN,
-                    "FAISS_INDEX_PATH": FAISS_INDEX
-                },
-                support_public_ip=True,
-                min_vcpu_count=8,
-                min_memory_in_gb=30,
-                bid_percent=50  # Added spot pricing
-            )
-            
-            # Handle both new and old API response formats
-            if hasattr(response, 'id'):
-                # New SDK version with Pod object
-                pod = response
-                if pod.status in ("RUNNING", "RESUMED"):
-                    break
-                print(f"⚠️ Pod created but not running. Status: {pod.status}")
-                runpod.terminate_pod(pod.id)
-            else:
-                # Old SDK version with dict response
-                pod_id = response['data']['podFindAndDeployOnDemand']['id']
-                print(f"ℹ️ Pod created with ID: {pod_id}")
-                # Wait for pod to be ready
-                for _ in range(10):
-                    sleep(10)
-                    pod = runpod.get_pod(pod_id)
-                    if pod and pod.status in ("RUNNING", "RESUMED"):
-                        break
-                if pod and pod.status in ("RUNNING", "RESUMED"):
-                    break
-                print(f"⚠️ Pod not ready after waiting. Status: {pod.status if pod else 'unknown'}")
-                if pod:
-                    runpod.terminate_pod(pod.id)
-            
-        except Exception as e:
-            print(f"⚠️ Failed with {gpu_type}: {str(e)}")
-            continue
-    
-    if pod and pod.status in ("RUNNING", "RESUMED"):
-        break  # Success!
-    
-    if attempt < max_retries - 1:
-        print(f"🔄 Retrying in {retry_delay} seconds...")
-        sleep(retry_delay)
-else:
-    sys.exit("❌ Failed to create pod after multiple attempts")
-
-# 7) Success - get public IP and print info
-try:
-    if not hasattr(pod, 'public_ip'):
-        pod = runpod.get_pod(pod.id if hasattr(pod, 'id') else pod['data']['podFindAndDeployOnDemand']['id'])
-    
-    public_ip = pod.public_ip
-    print("✅ Pod created successfully!")
-    print(f"GPU Type: {pod.gpu_type_id if hasattr(pod, 'gpu_type_id') else 'unknown'}")
-    print(f"Pod ID: {pod.id}")
-    print(f"Public IP: {public_ip}")
-    print(f"""
-🚀 GPU Image-Search API is live at:
-   http://{public_ip}:8000/search?top_k=3
-
-Test with:
-  curl -X POST \\
-    -H "Authorization: Bearer {API_AUTH_TOKEN}" \\
-    -F file=@test.jpg \\
-    http://{public_ip}:8000/search?top_k=3
-""")
-except Exception as e:
-    sys.exit(f"❌ Failed to get pod info: {str(e)}")
+sys.exit("❌ Failed to create pod after multiple attempts")

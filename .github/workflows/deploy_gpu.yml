@@ -2,19 +2,22 @@ name: 🚀 CI/CD – GPU Image-Search Service
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
+
+env:
+  GPU_SERVICE_PORT: 8000
+  SERVICE_TYPE: "image"
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     env:
-      GHCR_USER:        ${{ secrets.GHCR_USER }}
-      GHCR_TOKEN:       ${{ secrets.GHCR_TOKEN }}
-      RUNPOD_API_KEY:   ${{ secrets.RUNPOD_API_KEY }}
-      API_AUTH_TOKEN:   ${{ secrets.API_AUTH_TOKEN }}
+      GHCR_USER: ${{ secrets.GHCR_USER }}
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
       FAISS_INDEX_PATH: ${{ secrets.FAISS_INDEX_PATH }}
-
     steps:
       - uses: actions/checkout@v3
 
@@ -23,7 +26,7 @@ jobs:
 
       - name: 🐍 Install RunPod SDK
         run: pip install runpod
-      
+
       - name: 🔐 Log in to GHCR
         uses: docker/login-action@v2
         with:
@@ -31,7 +34,7 @@ jobs:
           username: ${{ env.GHCR_USER }}
           password: ${{ env.GHCR_TOKEN }}
 
-      - name: 🚀 Build, push & deploy to RunPod
+      - name: 🚀 Build, push & deploy
         run: |
           chmod +x scripts/deploy_gpu.sh
           ./scripts/deploy_gpu.sh
