@@ -5,7 +5,7 @@ import os
 import logging
 from pathlib import Path
 from typing import List, Dict, Any
-
+import io
 import numpy as np
 import faiss
 from PIL import Image
