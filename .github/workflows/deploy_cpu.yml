@@ -2,19 +2,25 @@ name: 🚀 CI/CD – PDF Service (CPU)
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
+# top-level env: literals + secrets (no interpolation of env.* here)
 env:
   PORT: 8001
   FLY_APP: multi-ai-chatbot
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+  PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
 
 jobs:
-  ci:
-    name: 🧪 Lint & Test
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 📥 Checkout
+      - name: 📥 Checkout code
         uses: actions/checkout@v3
 
       - name: 🐍 Set up Python 3.10
@@ -22,7 +28,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: 📦 Install deps
+      - name: 📦 Install dependencies
         run: |
           pip install --upgrade pip
           pip install flake8 pytest
@@ -34,44 +40,27 @@ jobs:
       - name: 🧪 Test
         run: PYTHONPATH=src pytest src/langgraphagenticai/tests
 
-  deploy:
-    name: 🚀 Deploy to Fly.io
-    needs: ci
-    runs-on: ubuntu-latest
-    env:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      PINECONE_API_KEY:   ${{ secrets.PINECONE_API_KEY }}
-      PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
-      OPENAI_API_KEY:     ${{ secrets.OPENAI_API_KEY }}
-      API_AUTH_TOKEN:     ${{ secrets.API_AUTH_TOKEN }}
-      PORT:               ${{ env.PORT }}
-      FLY_APP:            ${{ env.FLY_APP }}
-
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v3
-
-      - name: ⚙️ Install Flyctl
+      - name: ⚙️ Install flyctl
         run: |
           curl -L https://fly.io/install.sh | sh
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
-      - name: 🔐 Fly Login
-        run: flyctl auth login --access-token "${{ env.FLY_API_TOKEN }}"
+      - name: 🔐 Fly login
+        run: flyctl auth login --access-token "$FLY_API_TOKEN"
 
-      - name: 🚀 Deploy
+      - name: 🚀 Deploy PDF service
         run: |
           flyctl deploy --remote-only \
-            --app $FLY_APP \
+            --app "$FLY_APP" \
             --dockerfile docker/Dockerfile.cpu \
             --strategy immediate \
-            --env PORT=$PORT \
-            --env PINECONE_API_KEY=$PINECONE_API_KEY \
-            --env PINECONE_INDEX_NAME=$PINECONE_INDEX_NAME \
-            --env OPENAI_API_KEY=$OPENAI_API_KEY \
-            --env API_AUTH_TOKEN=$API_AUTH_TOKEN
+            --env PORT="$PORT" \
+            --env PINECONE_API_KEY="$PINECONE_API_KEY" \
+            --env PINECONE_INDEX_NAME="$PINECONE_INDEX_NAME" \
+            --env OPENAI_API_KEY="$OPENAI_API_KEY" \
+            --env API_AUTH_TOKEN="$API_AUTH_TOKEN"
 
-      - name: 🎯 Output URL
+      - name: 🎯 Output service URL
         run: |
           HOSTNAME=$(flyctl status --app "$FLY_APP" --json | jq -r .Hostname)
-          echo "PDF service live at https://$HOSTNAME"  
+          echo "✅ PDF service live at https://$HOSTNAME"
