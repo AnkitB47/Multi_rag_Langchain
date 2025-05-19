@@ -1,39 +1,55 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-# ──── 1) How long to run before self-terminate ─────────────
-# Hard-code to exactly one hour (3600s)
-TERMINATE_AFTER=3600
+# Load all environment variables (including secrets)
+source /etc/environment
 
-echo "🕒 Pod will self-terminate in $TERMINATE_AFTER seconds (1 hour)"
-sleep $TERMINATE_AFTER
+# Verify termination time
+if [ -z "$TERMINATE_AT" ]; then
+    echo "ℹ️ Running indefinitely (no TERMINATE_AT set)"
+    exit 0
+fi
 
-# ──── 2) Perform self-termination ─────────────────────────
-echo "🔴 Initiating self-termination…"
+# Calculate sleep duration
+now=$(date +%s)
+terminate=$(date -d "$TERMINATE_AT" +%s)
+duration=$((terminate - now))
 
-# Pull RunPod API key from env
-API_KEY=${RUNPOD_API_KEY:-}
+if [ $duration -le 0 ]; then
+    echo "⏰ Termination time already passed" >&2
+    exit 1
+fi
+
+echo "🕒 Pod will self-terminate at $TERMINATE_AT (in $duration seconds)"
+
+# Sleep in intervals to handle signals
+while [ $duration -gt 0 ]; do
+    sleep $(( duration > 300 ? 300 : duration ))  # Sleep in 5-minute chunks
+    now=$(date +%s)
+    duration=$((terminate - now))
+done
+
+# Self-termination
+echo "🔴 Initiating self-termination..."
+API_KEY=${RUNPOD_API_KEY:-$RUNPOD_AI_API_KEY}
 
 if [ -z "$API_KEY" ]; then
-    echo "❌ Missing RUNPOD_API_KEY" >&2
+    echo "❌ Missing RunPod API key" >&2
     exit 1
 fi
 
-# Query the local RunPod agent for this pod’s ID
-POD_ID=$(curl -fsSL \
-  -H "Authorization: Bearer $API_KEY" \
-  http://localhost/rp/v1/pod/get \
-  | jq -r '.id // empty')
+# Get pod ID through RunPod's local API
+POD_ID=$(curl -sSf -H "Authorization: Bearer $API_KEY" \
+    "http://localhost/rp/v1/pod/get" | jq -r '.id')
 
 if [ -z "$POD_ID" ]; then
-    echo "❌ Could not retrieve pod ID from local RunPod agent" >&2
+    echo "❌ Could not retrieve pod ID" >&2
     exit 1
 fi
 
-# Tell RunPod to terminate it
-curl -fsSL -X POST \
-  -H "Authorization: Bearer $API_KEY" \
-  "http://localhost/rp/v1/pod/terminate/$POD_ID" \
-  || { echo "❌ Pod termination request failed" >&2; exit 1; }
+# Send termination request
+curl -sSf -X POST -H "Authorization: Bearer $API_KEY" \
+    "http://localhost/rp/v1/pod/terminate/$POD_ID" >/dev/null
 
-echo "✅ Termination request sent successfully (pod $POD_ID)"
+echo "✅ Termination request sent successfully"
+exit 0

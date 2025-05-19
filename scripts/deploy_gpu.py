@@ -62,6 +62,7 @@ def deploy_pod():
         env={
             "API_AUTH_TOKEN": os.environ["API_AUTH_TOKEN"],
             "FAISS_INDEX_PATH": os.environ["FAISS_INDEX_PATH"],
+            "IMAGE_STORAGE_PATH": "/data/images", 
             "TERMINATE_AT": terminate_time.isoformat(),
             "SERVICE_TYPE": "image",
             "PORT": str(CONFIG["service_port"])

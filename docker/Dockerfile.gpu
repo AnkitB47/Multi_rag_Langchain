@@ -2,25 +2,22 @@
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /app
 
 # ──── SYSTEM SETUP ──────────────────────────────────────
-WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      python3.10 \
-      python3-pip \
-      libopenblas-dev \
-      apt-utils \
-      cron && \
+      python3.10 python3-pip libopenblas-dev apt-utils cron && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PIP_ROOT_USER_ACTION=ignore \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # ──── PYTHON DEPENDENCIES ───────────────────────────────
-COPY docker/requirements.gpu.txt /app/requirements.gpu.txt
+COPY docker/requirements.gpu.txt ./requirements.gpu.txt
 
-RUN pip install --no-cache-dir --upgrade pip wheel setuptools && \
+# Pin numpy<2 for FAISS binary compatibility, then install the rest
+RUN pip install --no-cache-dir --upgrade pip wheel setuptools "numpy<2" && \
     pip install --no-cache-dir --use-pep517 -r requirements.gpu.txt
 
 # ──── APP CODE ──────────────────────────────────────────
@@ -28,10 +25,14 @@ COPY src/ /app/src
 COPY docker/auto_terminate.sh /app/auto_terminate.sh
 RUN chmod +x /app/auto_terminate.sh
 
-# ──── FAISS INDEX PRELOAD ───────────────────────────────
-RUN mkdir -p /data/images && chmod 777 /data
-ENV FAISS_INDEX_PATH=/data/vector.index
+# ──── DATA DIRECTORIES ──────────────────────────────────
+# create both vector index dir and static-images dir
+RUN mkdir -p /data/images && \
+    chmod -R 777 /data
 
-# ──── API SERVER ────────────────────────────────────────
+ENV FAISS_INDEX_PATH=/data/vector.index \
+    IMAGE_STORAGE_PATH=/data/images
+
+# ──── EXPOSE & RUN ──────────────────────────────────────
 EXPOSE 8000
 CMD ["sh", "-c", "/app/auto_terminate.sh & uvicorn src.api.gpu_server:app --host 0.0.0.0 --port 8000"]
