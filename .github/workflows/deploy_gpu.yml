@@ -83,14 +83,12 @@ jobs:
         # 1) Deploy your pod
         python3 scripts/deploy_gpu.py
 
-        # 2) Install runpodctl CLI so we can inspect the new pod
-        curl -sL https://github.com/runpod/cli/releases/latest/download/runpodctl-linux-amd64 \
-          -o runpodctl && chmod +x runpodctl && sudo mv runpodctl /usr/local/bin/
+         # 2) Install runpodctl properly
+        curl -sL https://cli.runpod.net/install | sudo bash
 
-        # 3) Query RunPod for the public IP of the pod we just spun up
-        IP=$(runpodctl pod list --apiKey "$RUNPOD_API_KEY" --output json \
-          | jq -r --arg NAME "$SERVICE_NAME" \
-              '.[] | select(.name==$NAME) | .publicIp')
+        # 3) List pods and grab the public IP
+        PUBLIC_IP=$(runpodctl pod list --apiKey "$RUNPOD_API_KEY" --output json \
+          | jq -r --arg N "$SERVICE_NAME" \
+              '.[] | select(.name==$N) | .publicIp')
 
-        # 4) Report the live endpoint
-        echo "✅ GPU service live at http://${IP}:${GPU_SERVICE_PORT}"
+        echo "✅ GPU service live at http://${PUBLIC_IP}:${GPU_SERVICE_PORT}"

@@ -29,4 +29,5 @@ RUN mkdir -p /tmp && chmod 777 /tmp
 EXPOSE ${PORT}
     
 # ---- Launch ----
-CMD ["python", "-u", "src/langgraphagenticai/main.py"]
+CMD ["uvicorn", "langgraphagenticai.main:make_pdf_app", \
+    "--host", "0.0.0.0", "--port", "8001"]
