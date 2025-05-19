@@ -71,5 +71,5 @@ jobs:
 
       - name: 🎯 Output URL
         run: |
-          HOSTNAME=$(flyctl info --app $FLY_APP --json | jq -r .Status.Hostname)
+          HOSTNAME=$(flyctl status --app "$FLY_APP" --json | jq -r .Hostname)
           echo "PDF service live at https://$HOSTNAME"  

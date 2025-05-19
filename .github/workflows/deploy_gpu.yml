@@ -77,5 +77,20 @@ jobs:
         FAISS_INDEX_PATH: ${{ secrets.FAISS_INDEX_PATH }}
         GPU_API_URL:      ${{ secrets.GPU_API_URL }}
         IMAGE_NAME: ${{ env.IMAGE_NAME }}
+        SERVICE_NAME:      ${{ env.SERVICE_NAME }}
+        GPU_SERVICE_PORT:  ${{ env.GPU_SERVICE_PORT }}
       run: |
+        # 1) Deploy your pod
         python3 scripts/deploy_gpu.py
+
+        # 2) Install runpodctl CLI so we can inspect the new pod
+        curl -sL https://github.com/runpod/cli/releases/latest/download/runpodctl-linux-amd64 \
+          -o runpodctl && chmod +x runpodctl && sudo mv runpodctl /usr/local/bin/
+
+        # 3) Query RunPod for the public IP of the pod we just spun up
+        IP=$(runpodctl pod list --apiKey "$RUNPOD_API_KEY" --output json \
+          | jq -r --arg NAME "$SERVICE_NAME" \
+              '.[] | select(.name==$NAME) | .publicIp')
+
+        # 4) Report the live endpoint
+        echo "✅ GPU service live at http://${IP}:${GPU_SERVICE_PORT}"
