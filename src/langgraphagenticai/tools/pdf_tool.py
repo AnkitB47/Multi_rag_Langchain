@@ -1,54 +1,53 @@
-# src/langgraphagenticai/tools/pdf_tool.py
 import os
-import logging
+import pinecone
+from typing import List
+
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.vectorstores import Pinecone as PineconeVectorStore
+from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
-from langgraphagenticai.vectorstore.pinecone_store import get_vectordb
-from langgraphagenticai.LLMS.load_models import load_openai
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from langgraphagenticai.utils.pdf_utils import load_and_split_pdf
 
-# Custom prompt template for better results
-QA_PROMPT = PromptTemplate(
-    template="""Use the following context to answer the question. 
-    If you don't know the answer, say you don't know.
-    
-    Context: {context}
-    Question: {question}
-    
-    Answer:""",
-    input_variables=["context", "question"]
+# ─────────────────────────────────────────────────────────────────────────────
+#   CONFIGURATION FROM ENV
+# ─────────────────────────────────────────────────────────────────────────────
+PINECONE_API_KEY   = os.environ["PINECONE_API_KEY"]
+PINECONE_INDEX     = os.environ["PINECONE_INDEX_NAME"]
+EMBEDDING_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#   SETUP PINECONE & VECTORSTORE
+# ─────────────────────────────────────────────────────────────────────────────
+pinecone.init(api_key=PINECONE_API_KEY)
+pine_index = pinecone.Index(PINECONE_INDEX)
+
+embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_ID)
+vectordb   = PineconeVectorStore(
+    index=pine_index,
+    embedding=embeddings.embed_query,
+    text_key="text"
 )
 
-def query_pdf(query: str, pdf_path: str) -> str:
-    try:
-        # First confirm PDF is processed
-        if not os.path.exists(pdf_path):
-            return "Error: PDF not found"
-            
-        # Explicit loading message
-        print(f"Processing PDF: {pdf_path}")  # Log for debugging
-        
-        vectordb = get_vectordb(pdf_path)
-        
-        # Test retrieval
-        test_docs = vectordb.similarity_search("attention", k=1)
-        if not test_docs:
-            return "Error: PDF content not loaded properly"
-            
-        # Proceed with actual query
-        retriever = vectordb.as_retriever(search_kwargs={"k": 4})
-        qa_chain = RetrievalQA.from_chain_type(
-            llm=load_openai(),
-            chain_type="stuff",
-            retriever=retriever,
-            return_source_documents=True  # Critical for verification
-        )
-        
-        result = qa_chain({"query": query})
-        
-        return result["result"]
-        
-    except Exception as e:
-        return f"Processing error: {str(e)}"
+# ─────────────────────────────────────────────────────────────────────────────
+#   PDF INGEST & QUERY FUNCTIONS
+# ─────────────────────────────────────────────────────────────────────────────
+def ingest_pdf(pdf_path: str, namespace: str = "default") -> None:
+    """
+    Load a PDF, split it into chunks, embed them, and upsert into Pinecone.
+    """
+    docs = load_and_split_pdf(pdf_path)
+    vectordb.add_documents(docs, namespace=namespace)
+
+def query_pdf(query: str, namespace: str = "default") -> str:
+    """
+    Run a RetrievalQA chain over Pinecone index and return the answer.
+    """
+    retriever = vectordb.as_retriever(namespace=namespace)
+    qa = RetrievalQA.from_chain_type(
+        llm=ChatOpenAI(),
+        chain_type="stuff",
+        retriever=retriever,
+        return_source_documents=False
+    )
+    return qa.run(query)

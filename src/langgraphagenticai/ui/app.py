@@ -1,76 +1,82 @@
-import streamlit as st
-import tempfile
 import os
-import io
+import tempfile
+import streamlit as st
 import requests
-from datetime import datetime
 import logging
-from typing import Optional
 
-# ─── Configuration ───────────────────────────────────────
-PDF_SERVICE_URL = os.getenv("PDF_SERVICE_URL", "http://localhost:8001")
-API_TOKEN        = os.getenv("API_AUTH_TOKEN")
+from langgraphagenticai.tools.pdf_tool import ingest_pdf, query_pdf
+
+# ─────────────────────────────────────────────────────────────────────────────
+#   CONFIG
+# ─────────────────────────────────────────────────────────────────────────────
+PDF_API_URL = os.getenv("PDF_SERVICE_URL", "http://localhost:8001").rstrip("/")
+API_TOKEN   = os.getenv("API_AUTH_TOKEN")
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("pdf_app")
 
-def setup_ui():
-    st.set_page_config(
-        page_title="📄 PDF Q&A",
-        page_icon="📄",
-        layout="wide"
-    )
-    st.title("📄 PDF Question-Answering Service")
+# ─────────────────────────────────────────────────────────────────────────────
+#   UI SETUP
+# ─────────────────────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="PDF-only RAG Agent",
+    page_icon="📄",
+    layout="wide"
+)
+st.title("📄 PDF RAG Agent")
+st.markdown("Upload a PDF, index it, then ask free-form questions.")
 
-def upload_pdf() -> Optional[str]:
-    """Allow user to upload a PDF and return its local path."""
-    uploaded = st.file_uploader("Upload PDF", type="pdf")
-    if not uploaded:
-        return None
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(uploaded.getvalue())
-        return tmp.name
+# ─────────────────────────────────────────────────────────────────────────────
+#   STATE
+# ─────────────────────────────────────────────────────────────────────────────
+if "pdf_path" not in st.session_state:
+    st.session_state.pdf_path = None
 
-def ask_pdf(pdf_path: str, question: str, lang: str) -> Optional[str]:
-    """POST the PDF + question to the PDF service and return answer."""
-    try:
-        with open(pdf_path, "rb") as f:
-            resp = requests.post(
-                f"{PDF_SERVICE_URL}/process",
-                headers={"Authorization": f"Bearer {API_TOKEN}"},
-                files={"file": f},
-                data={"query": question, "lang": lang},
-                timeout=60
-            )
-        resp.raise_for_status()
-        data = resp.json()
-        return data.get("output") or data.get("answer") or "No answer returned."
-    except Exception as e:
-        logger.error(f"PDF service error: {e}", exc_info=True)
-        st.error("❌ Failed to process PDF. See logs.")
-        return None
+# ─────────────────────────────────────────────────────────────────────────────
+#   HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+def save_upload(uploader, suffix):
+    """Save uploaded file to a temp path."""
+    f = uploader
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    tmp.write(f.getvalue())
+    tmp.close()
+    return tmp.name
 
-def main():
-    setup_ui()
+def call_service(endpoint: str, files=None, data=None):
+    """Call CPU-side API if you prefer remote ingestion/query."""
+    headers = {"Authorization": f"Bearer {API_TOKEN}"} if API_TOKEN else {}
+    resp = requests.post(f"{PDF_API_URL}{endpoint}", files=files, data=data, headers=headers)
+    resp.raise_for_status()
+    return resp.json()
 
-    question = st.text_input("Your question about the PDF:")
-    lang     = st.selectbox("Language", ["en", "de", "hi", "fr"], index=0)
-    pdf_path = upload_pdf()
+# ─────────────────────────────────────────────────────────────────────────────
+#   PDF UPLOAD & INGEST
+# ─────────────────────────────────────────────────────────────────────────────
+uploaded = st.file_uploader("Step 1 – Upload PDF", type=["pdf"])
+if uploaded:
+    path = save_upload(uploaded, ".pdf")
+    with st.spinner("Indexing PDF into Pinecone…"):
+        # local ingestion
+        ingest_pdf(path)
+        # or if you have a separate service:
+        # call_service("/ingest", files={"file": open(path,"rb")})
+    st.success("✅ Indexed!")
+    st.session_state.pdf_path = path
 
-    if st.button("Get Answer"):
-        if not pdf_path or not question:
-            st.warning("Please upload a PDF and enter a question.")
-            return
+# ─────────────────────────────────────────────────────────────────────────────
+#   QUESTION
+# ─────────────────────────────────────────────────────────────────────────────
+query = st.text_input("Step 2 – Ask your question…")
 
-        with st.spinner("Processing PDF…"):
-            answer = ask_pdf(pdf_path, question, lang)
-            if answer:
-                st.markdown("### Answer")
-                st.write(answer)
-
-    # Clean up
-    if pdf_path and os.path.exists(pdf_path):
-        os.unlink(pdf_path)
-
-if __name__ == "__main__":
-    main()
+if st.button("Run PDF RAG") and query:
+    if not st.session_state.pdf_path:
+        st.warning("Please upload & index a PDF first.")
+    else:
+        with st.spinner("Running RetrievalQA…"):
+            # local query
+            answer = query_pdf(query)
+            # or if remote:
+            # answer = call_service("/query", data={"query": query})
+        st.subheader("🎯 Answer")
+        st.write(answer)
