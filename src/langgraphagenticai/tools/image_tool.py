@@ -5,6 +5,7 @@ from google.generativeai import GenerativeModel
 from google.api_core import retry as gp_retry
 from PIL import Image
 from langgraphagenticai.utils.image_utils import (
+    get_clip_model,
     validate_image,
     optimize_image,
     create_faiss_index,
