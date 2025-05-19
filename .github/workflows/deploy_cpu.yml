@@ -44,8 +44,6 @@ jobs:
       PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
       OPENAI_API_KEY:     ${{ secrets.OPENAI_API_KEY }}
       API_AUTH_TOKEN:     ${{ secrets.API_AUTH_TOKEN }}
-      PORT:               ${{ env.PORT }}
-      FLY_APP:            ${{ env.FLY_APP }}
 
     steps:
       - name: 📥 Checkout

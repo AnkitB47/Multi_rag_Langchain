@@ -16,9 +16,9 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     
 # ---- App Code ----
 COPY ./src /app/src
-COPY .streamlit /app/.streamlit
     
 # ---- Environment ----
+ENV PORT=8001
 ENV PYTHONPATH=/app/src
 ENV TMPDIR=/tmp
 
@@ -26,7 +26,7 @@ ENV TMPDIR=/tmp
 RUN mkdir -p /tmp && chmod 777 /tmp
     
 # ---- Expose Streamlit Port ----
-EXPOSE 8501
+EXPOSE ${PORT}
     
 # ---- Launch ----
-CMD ["streamlit", "run", "src/langgraphagenticai/ui/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["python", "-u", "src/langgraphagenticai/main.py"]
