@@ -1,38 +1,47 @@
 # ──── BASE CUDA IMAGE ───────────────────────────────────
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
+# avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
+
+# ──── WORKDIR ───────────────────────────────────────────
 WORKDIR /app
 
-# ──── SYSTEM SETUP ──────────────────────────────────────
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      python3.10 python3-pip libopenblas-dev apt-utils cron && \
-    rm -rf /var/lib/apt/lists/*
+# ──── SYSTEM PACKAGES ───────────────────────────────────
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      python3.10 python3-pip \
+      libopenblas-dev apt-utils cron \
+      curl jq \
+ && rm -rf /var/lib/apt/lists/*
 
-ENV PIP_ROOT_USER_ACTION=ignore \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+# speed up pip
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_ROOT_USER_ACTION=ignore
 
 # ──── PYTHON DEPENDENCIES ───────────────────────────────
-COPY docker/requirements.gpu.txt ./requirements.gpu.txt
+COPY docker/requirements.gpu.txt /app/requirements.gpu.txt
 
-# Pin numpy<2 for FAISS binary compatibility, then install the rest
-RUN pip install --no-cache-dir --upgrade pip wheel setuptools "numpy<2" && \
-    pip install --no-cache-dir --use-pep517 -r requirements.gpu.txt
+# pin numpy<2 so pre-built FAISS wheels load without the "multiarray" error
+RUN pip install --no-cache-dir --upgrade pip wheel setuptools "numpy<2" \
+ && pip install --no-cache-dir --use-pep517 -r requirements.gpu.txt
 
-# ──── APP CODE ──────────────────────────────────────────
+# ──── APP CODE + AUTO-TERMINATOR ────────────────────────
 COPY src/ /app/src
 COPY docker/auto_terminate.sh /app/auto_terminate.sh
 RUN chmod +x /app/auto_terminate.sh
 
-# ──── DATA DIRECTORIES ──────────────────────────────────
-# create both vector index dir and static-images dir
-RUN mkdir -p /data/images && \
-    chmod -R 777 /data
+# ──── DATA VOLUMES ─────────────────────────────────────
+# create both the vector index folder and the static images folder
+RUN mkdir -p /data/images \
+ && chmod -R 777 /data
 
 ENV FAISS_INDEX_PATH=/data/vector.index \
     IMAGE_STORAGE_PATH=/data/images
 
-# ──── EXPOSE & RUN ──────────────────────────────────────
+# ──── PORT + ENTRYPOINT ─────────────────────────────────
 EXPOSE 8000
-CMD ["sh", "-c", "/app/auto_terminate.sh & uvicorn src.api.gpu_server:app --host 0.0.0.0 --port 8000"]
+
+# run auto-terminate in background, then start uvicorn
+ENTRYPOINT ["sh","-c"]
+CMD ["/app/auto_terminate.sh & exec uvicorn src.api.gpu_server:app --host 0.0.0.0 --port 8000"]
