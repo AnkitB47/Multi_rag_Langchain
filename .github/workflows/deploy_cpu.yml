@@ -7,7 +7,7 @@ on:
 
 env:
   PORT: 8001
-  FLY_APP: "pdf"
+  FLY_APP: multi-ai-chatbot
 
 jobs:
   ci:
@@ -40,6 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: ${{ env.FLY_APP }}
       PINECONE_API_KEY:   ${{ secrets.PINECONE_API_KEY }}
       PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
       OPENAI_API_KEY:     ${{ secrets.OPENAI_API_KEY }}
