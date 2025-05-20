@@ -1,11 +1,11 @@
 import os
-import pinecone
 from typing import List
 
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import Pinecone as PineconeVectorStore
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
+from pinecone import Pinecone
 
 from langgraphagenticai.utils.pdf_utils import load_and_split_pdf
 
@@ -19,12 +19,12 @@ EMBEDDING_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 # ─────────────────────────────────────────────────────────────────────────────
 #   SETUP PINECONE & VECTORSTORE
 # ─────────────────────────────────────────────────────────────────────────────
-pinecone.init(api_key=PINECONE_API_KEY)
-pine_index = pinecone.Index(PINECONE_INDEX)
+pc = Pinecone(api_key=PINECONE_API_KEY)
+index = pc.Index(PINECONE_INDEX)
 
 embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_ID)
 vectordb   = PineconeVectorStore(
-    index=pine_index,
+    index=index,
     embedding=embeddings.embed_query,
     text_key="text"
 )
