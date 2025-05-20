@@ -1,28 +1,40 @@
 # docker/Dockerfile.cpu
 FROM python:3.10-slim
 
-# 1) work in /app and make sure our code is importable
-WORKDIR /app
-ENV PYTHONPATH=/app/src
+# avoid prompts
+ENV DEBIAN_FRONTEND=noninteractive
 
-# 2) system deps for PDF handling
+# set workdir
+WORKDIR /app
+
+# ─── System dependencies ───────────────────────────────
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      build-essential gcc git curl libjpeg-dev zlib1g-dev && \
+      build-essential \
+      gcc \
+      git \
+      curl \
+      libjpeg-dev \
+      zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# 3) install Python deps
+# ─── Copy & install Python deps ────────────────────────
 COPY docker/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r /app/requirements.txt
 
-# 4) copy in all our code
+# ─── Copy all source under /app/src ────────────────────
 COPY src/ /app/src
 
-# 5) port will default to 8001 (Fly sets $PORT)
-ARG PORT=8001
-ENV PORT=${PORT}
-EXPOSE ${PORT}
+# ─── Make /tmp world-writable for uploads ─────────────
+RUN mkdir -p /tmp && chmod 777 /tmp
 
-# 6) launch UVicorn pointing at our new module
+# ─── Expose the port your PDF API listens on ───────────
+ENV PORT=8001
+EXPOSE 8001
+
+# ─── So Python can find `langgraphagenticai/...` ───────
+ENV PYTHONPATH=/app/src
+
+# ─── Uvicorn launch of your PDF-RAG service ───────────
 CMD ["uvicorn", "api.main_pdf:app", "--host", "0.0.0.0", "--port", "8001"]

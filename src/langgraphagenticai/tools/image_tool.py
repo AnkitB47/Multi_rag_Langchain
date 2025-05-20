@@ -13,7 +13,6 @@ from langgraphagenticai.utils.image_utils import (
     clean_gemini_response
 )
 
-
 logger = logging.getLogger(__name__)
 
 # ── Configuration ────────────────────────────────────
