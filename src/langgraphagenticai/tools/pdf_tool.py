@@ -2,7 +2,7 @@ import os
 from typing import List
 
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Pinecone
+from langchain_community.vectorstores import Pinecone as PineconeVectorStore
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from pinecone import Pinecone
