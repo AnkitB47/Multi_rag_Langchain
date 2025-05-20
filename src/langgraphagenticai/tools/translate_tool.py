@@ -1,4 +1,6 @@
-from langgraphagenticai.LLMS.load_models import load_gemini
+import google.generativeai as genai
+genai.configure(api_key=GOOGLE_API_KEY)
+gemini_pro = genai.GenerativeModel("gemini-pro")
 
 def translate_text(text: str, target_lang: str) -> str:
     try:

@@ -1,8 +1,8 @@
 import os
 from typing import List
 
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import Pinecone as PineconeVectorStore
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Pinecone
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from pinecone import Pinecone
@@ -34,10 +34,21 @@ vectordb   = PineconeVectorStore(
 # ─────────────────────────────────────────────────────────────────────────────
 def ingest_pdf(pdf_path: str, namespace: str = "default") -> None:
     """
-    Load a PDF, split it into chunks, embed them, and upsert into Pinecone.
+    Load PDF, split into chunks, embed, and upsert into Pinecone.
+    Uses direct upsert for better control over vector data.
     """
     docs = load_and_split_pdf(pdf_path)
-    vectordb.add_documents(docs, namespace=namespace)
+    vectors = []
+    
+    for i, doc in enumerate(docs):
+        embedding = embeddings.embed_documents([doc.page_content])[0]
+        vectors.append({
+            "id": f"doc-{i}-{abs(hash(doc.page_content))}",   # Positive hash
+            "values": embedding,
+            "metadata": {"text": doc.page_content}
+        })
+    
+    index.upsert(vectors=vectors, namespace=namespace)
 
 def query_pdf(query: str, namespace: str = "default") -> str:
     """
@@ -48,6 +59,6 @@ def query_pdf(query: str, namespace: str = "default") -> str:
         llm=ChatOpenAI(),
         chain_type="stuff",
         retriever=retriever,
-        return_source_documents=False
+        return_source_documents=True
     )
     return qa.run(query)
