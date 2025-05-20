@@ -20,5 +20,5 @@ primary_region = "ams"
     handlers = ["tls", "http"]
 
 [[vm]]
-  cpus = 1
-  memory = "1gb"
+  cpus = 2
+  memory = "2gb"

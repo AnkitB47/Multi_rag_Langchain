@@ -4,7 +4,11 @@ FROM python:3.10-slim
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/src \
-    PORT=8001
+    PORT=8001 \
+    API_AUTH_TOKEN=${API_AUTH_TOKEN} \
+    PINECONE_API_KEY=${PINECONE_API_KEY} \
+    PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME} \
+    OPENAI_API_KEY=${OPENAI_API_KEY}
 
 WORKDIR /app
 
@@ -19,9 +23,15 @@ RUN apt-get update && \
       zlib1g-dev \
       poppler-utils \
       libsm6 \
-      libxext6 && \
+      libxext6 \
+      nginx && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Configure nginx
+COPY docker/nginx-cpu.conf /etc/nginx/sites-available/default
+RUN ln -sf /dev/stdout /var/log/nginx/access.log && \
+    ln -sf /dev/stderr /var/log/nginx/error.log
 
 # Install Python dependencies
 COPY docker/requirements.txt .
@@ -38,5 +48,5 @@ RUN mkdir -p /tmp && chmod 777 /tmp
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD curl -f http://localhost:$PORT/health || exit 1
 
-EXPOSE $PORT
-CMD ["uvicorn", "api.main_pdf:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "2"]
+EXPOSE $PORT 80
+CMD ["sh", "-c", "service nginx start && exec uvicorn api.main_pdf:app --host 0.0.0.0 --port $PORT --workers 2"]

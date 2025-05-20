@@ -34,6 +34,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y jq
         pip install runpod
+        pip install runpodctl
 
     - name: ✅ Verify GHCR pull token & tags
       env:
@@ -81,6 +82,22 @@ jobs:
         GPU_SERVICE_PORT:  ${{ env.GPU_SERVICE_PORT }}
       run: |
         python3 scripts/deploy_gpu.py
+
+    - name: Get Service URL
+      env:
+        RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      run: |
+        # Install runpodctl if not present
+        if ! command -v runpodctl &> /dev/null; then
+          curl -sL https://cli.runpod.net/install | sudo bash
+        fi
+    
+        # Get pod ID
+        POD_ID=$(runpodctl get pods --apiKey=$RUNPOD_API_KEY | grep "$SERVICE_NAME" | awk '{print $1}')
+        
+        # Get proxy URL
+        echo "::set-output name=service_url::http://${POD_ID}-8000.proxy.runpod.net"
+        echo "✅ GPU service available at: http://${POD_ID}-8000.proxy.runpod.net"
 
     
 
