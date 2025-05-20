@@ -4,7 +4,7 @@ gemini_pro = genai.GenerativeModel("gemini-pro")
 
 def translate_text(text: str, target_lang: str) -> str:
     try:
-        if lang != "en":
+        if target_lang != "en":
             prompt = f"Translate this to {target_lang}: {text}"
             response = gemini_pro.generate_content(prompt)
             return response.text
