@@ -19,7 +19,8 @@ RUN apt-get update && \
 
 # ─── Speed up pip ────────────────────────────────────────
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_ROOT_USER_ACTION=ignore
+    PIP_ROOT_USER_ACTION=ignore \
+    PYTHONPATH=/app/src
 
 # ─── Python dependencies ─────────────────────────────────
 # pin numpy<2 so prebuilt FAISS wheels work with your index_utils
@@ -46,4 +47,4 @@ EXPOSE 8000
 
 # run auto-terminate in background, then uvicorn
 ENTRYPOINT ["sh", "-c"]
-CMD ["/app/auto_terminate.sh & exec uvicorn src.api.gpu_server:app --host 0.0.0.0 --port 8000"]
+CMD ["/app/auto_terminate.sh & exec uvicorn api.gpu_server:app --host 0.0.0.0 --port 8000"]

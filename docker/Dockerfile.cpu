@@ -1,29 +1,28 @@
 # docker/Dockerfile.cpu
 FROM python:3.10-slim
 
-# ─── Working Directory ───────────────────────────────────
+# 1) work in /app and make sure our code is importable
 WORKDIR /app
+ENV PYTHONPATH=/app/src
 
-# ─── System Dependencies ─────────────────────────────────
+# 2) system deps for PDF handling
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential gcc git curl libjpeg-dev zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# ─── Python Dependencies ────────────────────────────────
+# 3) install Python deps
 COPY docker/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r /app/requirements.txt
 
-# ─── Application Code ───────────────────────────────────
+# 4) copy in all our code
 COPY src/ /app/src
 
-# ─── Temporary Directory ───────────────────────────────
-RUN mkdir -p /tmp && chmod 777 /tmp
+# 5) port will default to 8001 (Fly sets $PORT)
+ARG PORT=8001
+ENV PORT=${PORT}
+EXPOSE ${PORT}
 
-# ─── Runtime & Port ────────────────────────────────────
-ENV PORT=8001
-EXPOSE 8001
-
-# ─── Launch Uvicorn PDF-only Service ────────────────────
-CMD ["uvicorn", "src.api.main_pdf:app", "--host", "0.0.0.0", "--port", "8001"]
+# 6) launch UVicorn pointing at our new module
+CMD ["uvicorn", "api.main_pdf:app", "--host", "0.0.0.0", "--port", "8001"]

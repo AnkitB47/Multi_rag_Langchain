@@ -82,14 +82,7 @@ jobs:
       run: |
         python3 scripts/deploy_gpu.py
 
-        # install the latest runpodctl
-        curl -sL https://cli.runpod.net/install | sudo bash
+    
 
-        # get the public IP of your pod
-        PUBLIC_IP=$(
-          runpodctl pods list --apiKey "$RUNPOD_API_KEY" --output json \
-          | jq -r --arg N "$SERVICE_NAME" \
-              '.[] | select(.name==$N) | .publicIp'
-        )
-        echo "✅ GPU service live at http://${PUBLIC_IP}:${GPU_SERVICE_PORT}"
+
 
