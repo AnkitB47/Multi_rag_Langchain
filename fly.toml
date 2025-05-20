@@ -1,29 +1,26 @@
+# fly.toml
 app = "multi-ai-chatbot"
-
-primary_region = 'ams'
-
-[experimental]
-  auto_rollback = true
+primary_region = "ams"
 
 [build]
-  dockerfile = "./docker/Dockerfile.cpu"
+  dockerfile = "docker/Dockerfile.cpu"
 
 [env]
-  PORT = '8501'
+  PORT = "8001"
 
 [[services]]
-  protocol = 'tcp'
-  internal_port = 8501
+  protocol = "tcp"
+  internal_port = 8001
 
   [[services.ports]]
     port = 80
-    handlers = ['http']
+    handlers = ["http"]
 
   [[services.ports]]
     port = 443
-    handlers = ['tls', 'http']
+    handlers = ["tls", "http"]
 
 [[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
+  memory = "1gb"
+  cpu_kind = "shared"
   cpus = 1

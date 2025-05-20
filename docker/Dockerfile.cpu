@@ -1,33 +1,29 @@
-# ---- Base Image ----
+# docker/Dockerfile.cpu
 FROM python:3.10-slim
 
-# ---- Working Directory ----
+# ─── Working Directory ───────────────────────────────────
 WORKDIR /app
-    
-# ---- System Dependencies ----
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc git curl libjpeg-dev zlib1g-dev && \
+
+# ─── System Dependencies ─────────────────────────────────
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential gcc git curl libjpeg-dev zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
-    
-# ---- Python Dependencies ----
-COPY ./docker/requirements.txt /app/requirements.txt
+
+# ─── Python Dependencies ────────────────────────────────
+COPY docker/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r /app/requirements.txt
-    
-# ---- App Code ----
-COPY ./src /app/src
-    
-# ---- Environment ----
-ENV PORT=8001
-ENV PYTHONPATH=/app/src
-ENV TMPDIR=/tmp
 
-# ---- Create /tmp and set permissions ----
+# ─── Application Code ───────────────────────────────────
+COPY src/ /app/src
+
+# ─── Temporary Directory ───────────────────────────────
 RUN mkdir -p /tmp && chmod 777 /tmp
-    
-# ---- Expose Streamlit Port ----
-EXPOSE ${PORT}
-    
-# ---- Launch ----
-CMD ["uvicorn", "langgraphagenticai.main:make_pdf_app", \
-    "--host", "0.0.0.0", "--port", "8001"]
+
+# ─── Runtime & Port ────────────────────────────────────
+ENV PORT=8001
+EXPOSE 8001
+
+# ─── Launch Uvicorn PDF-only Service ────────────────────
+CMD ["uvicorn", "src.api.main_pdf:app", "--host", "0.0.0.0", "--port", "8001"]

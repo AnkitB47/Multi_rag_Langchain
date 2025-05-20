@@ -16,9 +16,11 @@ langchain-openai>=0.1.6
 langgraph>=0.0.40
 
 # --- Embeddings & Vector DB ---
+
 pinecone-client>=3.0.0
 openai>=1.14.3
 google-generativeai>=0.4.1
+google
 pgvector
 sqlalchemy
 

@@ -1,110 +1,99 @@
-from fastapi import FastAPI, UploadFile, HTTPException, Header, status
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+# src/api/gpu_server.py
+
 import os
-import logging
-from pathlib import Path
-from typing import List, Dict, Any
 import io
-import numpy as np
-import faiss
+import logging
+from fastapi import FastAPI, UploadFile, File, Form, Header, HTTPException, status
+from fastapi.responses import JSONResponse
+from typing import List, Dict
 from PIL import Image
-from sentence_transformers import SentenceTransformer
+from langgraphagenticai.tools.image_tool import query_image, search_similar_images
 
-# ─── Logging ───────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s"
-)
-logger = logging.getLogger(__name__)
+# ── Logging ─────────────────────────────────────────────
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("gpu_server")
 
-# ─── Configuration ────────────────────────────────────────
-API_TOKEN           = os.getenv("API_AUTH_TOKEN")
+# ── Configuration ───────────────────────────────────────
+API_TOKEN = os.getenv("API_AUTH_TOKEN")
 if not API_TOKEN:
-    logger.error("Missing API_AUTH_TOKEN")
-    raise RuntimeError("API_AUTH_TOKEN must be set")
+    logger.error("API_AUTH_TOKEN is not set")
+    raise RuntimeError("API_AUTH_TOKEN environment variable must be set")
 
-INDEX_PATH          = os.getenv("FAISS_INDEX_PATH", "/data/vector.index")
-IMAGE_STORAGE_PATH  = os.getenv("IMAGE_STORAGE_PATH", "/data/images")
-EMBEDDING_MODEL     = os.getenv("EMBEDDING_MODEL", "clip-ViT-B-32")
-
-# ─── Ensure storage dirs ───────────────────────────────────
-Path(IMAGE_STORAGE_PATH).mkdir(parents=True, exist_ok=True)
-os.chmod(IMAGE_STORAGE_PATH, 0o755)
-
-# ─── FastAPI setup ────────────────────────────────────────
+# ── FastAPI setup ───────────────────────────────────────
 app = FastAPI(
-    title="Image Similarity Search",
-    version="1.0.0",
+    title="GPU Image Service",
+    version="1.0",
+    description="Image Q&A (Gemini Vision) and FAISS similarity search",
     docs_url="/docs",
-    redoc_url=None,
-    description="Find visually similar images via CLIP + FAISS"
+    redoc_url=None
 )
-app.mount("/images", StaticFiles(directory=IMAGE_STORAGE_PATH), name="images")
 
-# ─── Load model + index ────────────────────────────────────
-logger.info("Loading embedding model...")
-model = SentenceTransformer(EMBEDDING_MODEL)
+@app.middleware("http")
+async def check_auth(request, call_next):
+    # All endpoints require Bearer token
+    auth = request.headers.get("authorization")
+    if auth != f"Bearer {API_TOKEN}":
+        return JSONResponse(
+            {"detail": "Invalid or missing authorization token"},
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )
+    return await call_next(request)
 
-if os.path.exists(INDEX_PATH):
-    logger.info(f"Loading FAISS index from {INDEX_PATH}…")
-    index = faiss.read_index(INDEX_PATH)
-else:
-    logger.info("Creating new FAISS index (empty)…")
-    index = faiss.IndexIDMap(faiss.IndexFlatIP(512))
-    faiss.write_index(index, INDEX_PATH)
+# ── /describe endpoint ───────────────────────────────────
+@app.post("/describe", summary="Ask a question about an image")
+async def describe_image(
+    file: UploadFile = File(..., description="Your image file"),
+    query: str      = Form(..., description="Your free-form question about the image")
+) -> Dict[str, str]:
+    """
+    Returns a concise answer about the contents of the image,
+    powered by Gemini Vision (with retry/backoff).
+    """
+    # save to temp
+    tmp_path = f"/tmp/{file.filename}"
+    data = await file.read()
+    with open(tmp_path, "wb") as f:
+        f.write(data)
 
-logger.info(f"Index contains {index.ntotal} vectors")
+    try:
+        answer = query_image(query, tmp_path)
+        return {"description": answer}
+    except Exception as e:
+        logger.exception("describe_image failed")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Image description failed")
 
-# ─── Root & health endpoints ──────────────────────────────
+# ── /search endpoint ─────────────────────────────────────
+@app.post("/search", summary="Find visually similar images")
+async def find_similar(
+    file: UploadFile  = File(..., description="Your image file"),
+    top_k: int       = Form(3, ge=1, le=20, description="How many matches to return (1–20)")
+) -> Dict[str, List[str]]:
+    """
+    Returns a list of file-paths (or URLs) of the top_k images
+    in your FAISS index most similar to the uploaded file.
+    """
+    tmp_path = f"/tmp/{file.filename}"
+    data = await file.read()
+    with open(tmp_path, "wb") as f:
+        f.write(data)
+
+    try:
+        matches = search_similar_images(tmp_path, top_k)
+        return {"matches": matches}
+    except ValueError as e:
+        # invalid image format / validation failure
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.exception("find_similar failed")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Similarity search failed")
+
+# ── Health & Root ───────────────────────────────────────
 @app.get("/", include_in_schema=False)
 async def root():
-    return JSONResponse({"service": "image-search", "status": "ok"})
+    return {"service": "gpu-image", "status": "ok"}
 
-@app.get("/health")
+@app.get("/health", summary="Service health check")
 async def health():
-    return {
-        "status": "healthy",
-        "index_size": index.ntotal,
-        "images_dir": IMAGE_STORAGE_PATH
-    }
-
-# ─── Search endpoint ───────────────────────────────────────
-@app.post("/search", response_model=List[Dict[str, Any]])
-async def search_images(
-    file: UploadFile,
-    top_k: int = 3,
-    authorization: str = Header(..., alias="Authorization")
-):
-    # Auth
-    if authorization != f"Bearer {API_TOKEN}":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-    if not (1 <= top_k <= 100):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="top_k must be 1–100")
-
-    # Read & embed
-    data = await file.read()
-    try:
-        img = Image.open(io.BytesIO(data)).convert("RGB")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid image file")
-
-    emb = model.encode(img, convert_to_tensor=False).astype(np.float32).reshape(1, -1)
-
-    # FAISS search
-    dists, idxs = index.search(emb, top_k)
-
-    results = []
-    for dist, idx in zip(dists[0], idxs[0]):
-        if idx < 0:  # no match
-            continue
-        img_path = os.path.join(IMAGE_STORAGE_PATH, f"{idx}.jpg")
-        results.append({
-            "image_id":    int(idx),
-            "similarity":  float(dist),
-            "image_url":   f"/images/{idx}.jpg",
-            "file_exists": os.path.exists(img_path)
-        })
-
-    return results
+    return {"status": "healthy"}

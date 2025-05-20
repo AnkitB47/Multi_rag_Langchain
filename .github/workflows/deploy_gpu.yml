@@ -80,15 +80,16 @@ jobs:
         SERVICE_NAME:      ${{ env.SERVICE_NAME }}
         GPU_SERVICE_PORT:  ${{ env.GPU_SERVICE_PORT }}
       run: |
-        # 1) Deploy your pod
         python3 scripts/deploy_gpu.py
 
-         # 2) Install runpodctl properly
+        # install the latest runpodctl
         curl -sL https://cli.runpod.net/install | sudo bash
 
-        # 3) List pods and grab the public IP
-        PUBLIC_IP=$(runpodctl pod list --apiKey "$RUNPOD_API_KEY" --output json \
+        # get the public IP of your pod
+        PUBLIC_IP=$(
+          runpodctl pods list --apiKey "$RUNPOD_API_KEY" --output json \
           | jq -r --arg N "$SERVICE_NAME" \
-              '.[] | select(.name==$N) | .publicIp')
-
+              '.[] | select(.name==$N) | .publicIp'
+        )
         echo "✅ GPU service live at http://${PUBLIC_IP}:${GPU_SERVICE_PORT}"
+

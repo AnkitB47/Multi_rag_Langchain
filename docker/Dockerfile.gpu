@@ -1,49 +1,49 @@
-# ──── BASE CUDA IMAGE ───────────────────────────────────
+# docker/Dockerfile.gpu
+# ─── Base CUDA image ───────────────────────────────────
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
-# ──── avoid any interactive prompts ──────────────────────
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ──── WORKDIR ───────────────────────────────────────────
+# ─── Workdir ────────────────────────────────────────────
 WORKDIR /app
 
-# ──── SYSTEM PACKAGES ───────────────────────────────────
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-      python3.10 \
+# ─── Install system dependencies ────────────────────────
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
       python3-pip \
       libopenblas-dev \
-      libjpeg-dev \
-      zlib1g-dev \
       cron \
       curl \
-      jq \
- && rm -rf /var/lib/apt/lists/*
+      jq && \
+    rm -rf /var/lib/apt/lists/*
 
-# ──── pip performance tweaks ─────────────────────────────
+# ─── Speed up pip ────────────────────────────────────────
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_ROOT_USER_ACTION=ignore
 
-# ──── PYTHON DEPENDENCIES ───────────────────────────────
-COPY ./docker/requirements.gpu.txt /app/requirements.gpu.txt
-RUN pip install --no-cache-dir --upgrade pip wheel setuptools "numpy<2" \
- && pip install --no-cache-dir --use-pep517 -r requirements.gpu.txt
+# ─── Python dependencies ─────────────────────────────────
+# pin numpy<2 so prebuilt FAISS wheels work with your index_utils
+COPY docker/requirements.gpu.txt /app/requirements.gpu.txt
+RUN pip install --no-cache-dir --upgrade pip wheel setuptools "numpy<2" && \
+    pip install --no-cache-dir --use-pep517 -r requirements.gpu.txt
 
-# ──── APP CODE + AUTO-TERMINATOR ────────────────────────
-COPY ./src/ /app/src
-COPY ./docker/auto_terminate.sh /app/auto_terminate.sh
+# ─── Copy application code + entrypoint ─────────────────
+COPY src/ /app/src
+COPY docker/auto_terminate.sh /app/auto_terminate.sh
 RUN chmod +x /app/auto_terminate.sh
 
-# ──── DATA VOLUMES ──────────────────────────────────────
-# Create FAISS index folder & static images folder
-RUN mkdir -p /data/images \
- && chmod -R 777 /data
-
+# ─── Prepare data directories ───────────────────────────
+RUN mkdir -p /data/images && chmod -R 777 /data
 ENV FAISS_INDEX_PATH=/data/vector.index \
-    IMAGE_STORAGE_PATH=/data/images
+    IMAGE_STORAGE_PATH=/data/images \
+    TMPDIR=/tmp
 
-# ──── PORT + ENTRYPOINT ─────────────────────────────────
+# ensure /tmp exists & is writable
+RUN mkdir -p /tmp && chmod 777 /tmp
+
+# ─── Expose port & launch ───────────────────────────────
 EXPOSE 8000
 
-ENTRYPOINT ["sh","-c"]
+# run auto-terminate in background, then uvicorn
+ENTRYPOINT ["sh", "-c"]
 CMD ["/app/auto_terminate.sh & exec uvicorn src.api.gpu_server:app --host 0.0.0.0 --port 8000"]
