@@ -4,36 +4,33 @@ aiohttp>=3.9.3
 tiktoken>=0.6.0
 pydantic>=2.6.4
 
-# ===== LangChain Ecosystem =====
-langchain-core>=0.1.47  # Core abstractions
-langchain-community>=0.2.0  # Replaces most langchain.* imports
-langchain-text-splitters>=0.0.1  # For RecursiveCharacterTextSplitter
-langchain-openai>=0.1.6  # OpenAI integrations
+# ===== Pinecone (Critical Fix) =====
+pinecone>=3.1.0  # MUST replace pinecone-client
+langchain-pinecone==0.0.6  # Keep if needed for legacy code
 
-# ===== Vector DB & Embeddings =====
-pinecone-client>=3.1.0  # Critical: Must be v3+ for new Pinecone() syntax
-sentence-transformers>=2.7.0  # For HuggingFace embeddings
-openai>=1.13.3  # For OpenAI embeddings fallback
+# ===== LangChain Ecosystem =====
+langchain-core>=0.1.47
+langchain-community>=0.2.0  # Replaces most deprecated imports
+langchain-text-splitters>=0.0.1
+langchain-openai>=0.1.6
+
+# ===== Embeddings =====
+sentence-transformers>=2.7.0
+openai>=1.13.3
 
 # ===== PDF Processing =====
-PyMuPDF>=1.23.22  # Fast PDF text extraction
-pypdf>=3.17.0  # Additional PDF support
-unstructured>=0.12.5  # Advanced document parsing
+PyMuPDF>=1.23.22
+pypdf>=3.17.0
+unstructured>=0.12.5
 
-# ===== LangGraph Orchestration =====
-langgraph>=0.0.40  # Your workflow engine
+# ===== LangGraph =====
+langgraph>=0.0.40
 
 # ===== API Server =====
 fastapi>=0.109.0
 uvicorn>=0.27.0
-httpx>=0.26.0  # Async HTTP client
-
-# ===== Optional Utilities =====
-numpy>=1.26.0  # Required by many ML libs
-pandas>=2.1.0  # For data handling
-tqdm>=4.66.0  # Progress bars
+httpx>=0.26.0
 
 # ===== Development =====
 pytest>=8.0.0
 flake8>=7.0.0
-black>=24.0.0  # Auto-formatting
