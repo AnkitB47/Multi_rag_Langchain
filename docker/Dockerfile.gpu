@@ -1,50 +1,45 @@
-# docker/Dockerfile.gpu
-# ─── Base CUDA image ───────────────────────────────────
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
-ENV DEBIAN_FRONTEND=noninteractive
+# System configuration
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src \
+    PORT=8000 \
+    FAISS_ENABLE_GPU=ON \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# ─── Workdir ────────────────────────────────────────────
 WORKDIR /app
 
-# ─── Install system dependencies ────────────────────────
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       python3-pip \
       libopenblas-dev \
       cron \
       curl \
-      jq && \
+      jq \
+      libsm6 \
+      libxext6 && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# ─── Speed up pip ────────────────────────────────────────
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_ROOT_USER_ACTION=ignore \
-    PYTHONPATH=/app/src
-
-# ─── Python dependencies ─────────────────────────────────
-# pin numpy<2 so prebuilt FAISS wheels work with your index_utils
-COPY docker/requirements.gpu.txt /app/requirements.gpu.txt
+# Install Python dependencies
+COPY docker/requirements.gpu.txt .
 RUN pip install --no-cache-dir --upgrade pip wheel setuptools "numpy<2" && \
-    pip install --no-cache-dir --use-pep517 -r requirements.gpu.txt
+    pip install --no-cache-dir -r requirements.gpu.txt
 
-# ─── Copy application code + entrypoint ─────────────────
+# Copy application
 COPY src/ /app/src
-COPY docker/auto_terminate.sh /app/auto_terminate.sh
+COPY docker/auto_terminate.sh .
 RUN chmod +x /app/auto_terminate.sh
 
-# ─── Prepare data directories ───────────────────────────
-RUN mkdir -p /data/images && chmod -R 777 /data
-ENV FAISS_INDEX_PATH=/data/vector.index \
-    IMAGE_STORAGE_PATH=/data/images \
-    TMPDIR=/tmp
+# Setup directories
+RUN mkdir -p /data/images /tmp && \
+    chmod -R 777 /data /tmp
 
-# ensure /tmp exists & is writable
-RUN mkdir -p /tmp && chmod 777 /tmp
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD curl -f http://localhost:$PORT/health || exit 1
 
-# ─── Expose port & launch ───────────────────────────────
-EXPOSE 8000
-
-# run auto-terminate in background, then uvicorn
-ENTRYPOINT ["sh", "-c"]
-CMD ["/app/auto_terminate.sh & exec uvicorn api.gpu_server:app --host 0.0.0.0 --port 8000"]
+EXPOSE $PORT
+CMD ["/bin/bash", "-c", "/app/auto_terminate.sh & exec uvicorn api.gpu_server:app --host 0.0.0.0 --port $PORT"]

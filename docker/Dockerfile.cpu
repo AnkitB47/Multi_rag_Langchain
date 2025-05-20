@@ -1,13 +1,14 @@
-# docker/Dockerfile.cpu
 FROM python:3.10-slim
 
-# avoid prompts
-ENV DEBIAN_FRONTEND=noninteractive
+# System configuration
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src \
+    PORT=8001
 
-# set workdir
 WORKDIR /app
 
-# ─── System dependencies ───────────────────────────────
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential \
@@ -15,26 +16,27 @@ RUN apt-get update && \
       git \
       curl \
       libjpeg-dev \
-      zlib1g-dev && \
+      zlib1g-dev \
+      poppler-utils \
+      libsm6 \
+      libxext6 && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# ─── Copy & install Python deps ────────────────────────
-COPY docker/requirements.txt /app/requirements.txt
+# Install Python dependencies
+COPY docker/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r /app/requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 
-# ─── Copy all source under /app/src ────────────────────
+# Copy application
 COPY src/ /app/src
 
-# ─── Make /tmp world-writable for uploads ─────────────
+# Setup permissions
 RUN mkdir -p /tmp && chmod 777 /tmp
 
-# ─── Expose the port your PDF API listens on ───────────
-ENV PORT=8001
-EXPOSE 8001
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD curl -f http://localhost:$PORT/health || exit 1
 
-# ─── So Python can find `langgraphagenticai/...` ───────
-ENV PYTHONPATH=/app/src
-
-# ─── Uvicorn launch of your PDF-RAG service ───────────
-CMD ["uvicorn", "api.main_pdf:app", "--host", "0.0.0.0", "--port", "8001"]
+EXPOSE $PORT
+CMD ["uvicorn", "api.main_pdf:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "2"]
