@@ -6,7 +6,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Pinecone as PineconeVectorStore
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
-from pinecone import Pinecone, ServerlessSpec
+from pinecone import Pinecone
 
 from langgraphagenticai.utils.pdf_utils import load_and_split_pdf
 

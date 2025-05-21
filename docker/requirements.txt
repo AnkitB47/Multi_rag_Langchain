@@ -1,62 +1,44 @@
-# --- Core App ---
+# ─── CORE ─────────────────────────────────────────────────────────────────────
 python-dotenv
 aiohttp
-tiktoken
+tiktoken>=0.6.0
 pydantic>=2.6.4
 
-# --- LangChain & Ecosystem ---
+# ─── LANGCHAIN ECOSYSTEM ─────────────────────────────────────────────────────
 langchain>=0.1.16
 langchain-core>=0.1.40
 langchain-community>=0.0.33
-langchain-pinecone
 langchain-openai>=0.1.6
-langchain-huggingface
+langchain-pinecone>=0.0.5       # LangChain’s Pinecone wrapper
+langchain-huggingface>=0.0.5    # For HuggingFaceEmbeddings
 
-# --- LangGraph Orchestration ---
-langgraph>=0.0.40
+# ─── PINECONE (v3+) ──────────────────────────────────────────────────────────
+pinecone-client>=3.0.0,<4.0     # the official v3+ Python SDK
 
-# --- Embeddings & Vector DB ---
-
-pinecone-client>=3.0.0
+# ─── EMBEDDINGS & LLMs ───────────────────────────────────────────────────────
+sentence-transformers>=2.2.2
 openai>=1.14.3
 google-generativeai>=0.4.1
-google
-pgvector
-sqlalchemy
 
-# --- Optional Transformers (fallback embedding & tools) ---
-sentence-transformers>=2.7.0  # UPDATED: Ensure CLIP support
+# ─── PDF / FILE PROCESSING ───────────────────────────────────────────────────
+PyMuPDF>=1.23.22
+pypdf
+unstructured[pdf]
+
+# ─── OPTIONAL TOOLS ──────────────────────────────────────────────────────────
+# (only if you actually need these)
 transformers>=4.41.0
 numpy<2.0
 faiss-cpu==1.7.2
-torch==2.2.2 
+torch==2.2.2
 accelerate
 einops>=0.7.0
 
-# --- File Parsing & Tools ---
-PyMuPDF
-arxiv
-pypdf
-duckduckgo-search
-yfinance
-
-# --- Image Processing ---  # NEW SECTION
-pillow>=10.0.0  # Required for image operations
-opencv-python-headless>=4.8.0  # NEW: Helpful for advanced image processing
-imageio>=2.31.1  # NEW: Additional image support
-
-# --- Agent Frameworks ---
-phidata
-groq
-agno
-phi
-tantivy>=0.21.0
-lancedb>=0.4.5
-
-# --- Server / API ---
+# ─── API SERVER ──────────────────────────────────────────────────────────────
 fastapi>=0.109.0
 uvicorn>=0.27.0
+httpx
 
-# --- Dev, Test, Lint ---
+# ─── DEV & LINT ──────────────────────────────────────────────────────────────
 pytest
 flake8
