@@ -2,23 +2,23 @@
 python-dotenv
 aiohttp
 tiktoken>=0.6.0
-pydantic>=2.6.4
+pydantic
 
 # ─── LANGCHAIN ECOSYSTEM ─────────────────────────────────────────────────────
-langchain>=0.1.16
-langchain-core>=0.1.40
-langchain-community>=0.0.33
-langchain-openai>=0.1.6
-langchain-pinecone>=0.0.5       # LangChain’s Pinecone wrapper
-langchain-huggingface>=0.0.5    # For HuggingFaceEmbeddings
+langchain>=0.1.14
+langchain-core>=0.1.47
+langchain-community>=0.0.21
+langchain-openai
+langchain-pinecone       # LangChain’s Pinecone wrapper
+langchain-huggingface    # For HuggingFaceEmbeddings
 
 # ─── PINECONE (v3+) ──────────────────────────────────────────────────────────
-pinecone-client>=3.0.0,<4.0     # the official v3+ Python SDK
+pinecone-client>=3.0.0     # the official v3+ Python SDK
 
 # ─── EMBEDDINGS & LLMs ───────────────────────────────────────────────────────
 sentence-transformers>=2.2.2
-openai>=1.14.3
-google-generativeai>=0.4.1
+openai>=1.13.3
+google-generativeai>=0.3.2
 
 # ─── PDF / FILE PROCESSING ───────────────────────────────────────────────────
 PyMuPDF>=1.23.22
@@ -27,16 +27,16 @@ unstructured[pdf]
 
 # ─── OPTIONAL TOOLS ──────────────────────────────────────────────────────────
 # (only if you actually need these)
-transformers>=4.41.0
-numpy<2.0
+transformers
+numpy
 faiss-cpu==1.7.2
 torch==2.2.2
 accelerate
-einops>=0.7.0
+einops
 
 # ─── API SERVER ──────────────────────────────────────────────────────────────
-fastapi>=0.109.0
-uvicorn>=0.27.0
+fastapi
+uvicorn
 httpx
 
 # ─── DEV & LINT ──────────────────────────────────────────────────────────────
