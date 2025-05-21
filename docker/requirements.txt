@@ -5,7 +5,7 @@ tiktoken>=0.6.0
 pydantic 
 
 # ===== PINECONE =====
-pinecone-client>=3.0.0  # Explicit client package
+pinecone>=2.5.3  # Explicit client package
 
 # ===== LANGCHAIN ECOSYSTEM =====
 langchain>=0.1.14  

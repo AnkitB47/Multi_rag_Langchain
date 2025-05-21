@@ -7,7 +7,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Pinecone as PineconeVectorStore
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
-from pinecone import Pinecone
+from pinecone import Pinecone, ServerlessSpec
 
 from langgraphagenticai.utils.pdf_utils import load_and_split_pdf
 
@@ -46,10 +46,9 @@ def ingest_pdf(pdf_path: str, namespace: str = "default") -> Dict[str, int]:
     
     for i, doc in enumerate(docs):
         embedding = embeddings.embed_documents([doc.page_content])[0]
-        doc_hash = hashlib.md5(doc.page_content.encode()).hexdigest()[:8]
-        
+                
         vectors.append({
-            "id": f"doc-{i}-{doc_hash}",
+            "id": f"doc-{i}",
             "values": embedding,
             "metadata": {
                 "text": doc.page_content,
@@ -64,13 +63,11 @@ def query_pdf(query: str, namespace: str = "default") -> str:
     """
     Run a RetrievalQA chain over Pinecone index and return the answer.
     """
-    retriever = vectordb.as_retriever(
-        namespace=namespace,
-        search_kwargs={"k": 3}
-    )
+    retriever = vectordb.as_retriever(namespace=namespace)
     qa = RetrievalQA.from_chain_type(
-        llm=ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3),
+        llm=ChatOpenAI(),
         chain_type="stuff",
-        retriever=retriever
+        retriever=retriever,
+        return_source_documents=False
     )
     return qa.run(query)

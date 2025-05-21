@@ -18,7 +18,3 @@ primary_region = "ams"
   [[services.ports]]
     port = 443
     handlers = ["tls", "http"]
-
-[[vm]]
-  cpus = 2
-  memory = "2gb"
