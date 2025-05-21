@@ -19,7 +19,6 @@ pinecone-client>=3.0.0     # the official v3+ Python SDK
 sentence-transformers>=2.2.2
 openai>=1.13.3
 google-generativeai>=0.3.2
-replicate
 
 # ─── PDF / FILE PROCESSING ───────────────────────────────────────────────────
 PyMuPDF>=1.23.22
