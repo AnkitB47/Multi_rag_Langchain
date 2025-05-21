@@ -8,8 +8,9 @@ pydantic>=2.6.4
 langchain>=0.1.16
 langchain-core>=0.1.40
 langchain-community>=0.0.33
-langchain-pinecone>=0.0.6
+langchain-pinecone
 langchain-openai>=0.1.6
+langchain-huggingface
 
 # --- LangGraph Orchestration ---
 langgraph>=0.0.40
