@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  PORT: 8001
+  PORT: 8080
   FLY_APP: multi-ai-chatbot
 
 jobs:
