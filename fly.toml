@@ -4,35 +4,24 @@ primary_region = "ams"
 [build]
   dockerfile = "docker/Dockerfile.cpu"
 
-[build.args]
-  # passed into your Dockerfile so Uvicorn will listen on 0.0.0.0:$PORT
-  PORT = "8080"
-
 [env]
-  PORT = "8080"
+  PORT = "8080"  # or "8001" if you prefer
 
 [[services]]
-  internal_port = 8080
+  internal_port = 8080   # must match the PORT your container listens on
   protocol      = "tcp"
 
-  # HTTP on 80 (insecure)...
   [[services.ports]]
     port     = 80
     handlers = ["http"]
 
-  # …and HTTPS on 443, with TLS termination in Fly’s proxy
-  [[services.ports]]
-    port     = 443
-    handlers = ["tls", "http"]
-
-  # give the container extra time to boot & respond
   [[services.http_checks]]
     path         = "/health"
-    interval     = "15s"   # check every 15s
-    timeout      = "5s"    # allow up to 5s for each check
-    grace_period = "3m"    # wait up to 3 minutes for a first successful check
+    interval     = "10s"
+    timeout      = "3s"
+    grace_period = "60s"  # give uvicorn time to boot & imports to lazy‐load
 
   [[services.tcp_checks]]
-    interval     = "15s"
-    timeout      = "5s"
-    grace_period = "3m"
+    interval     = "10s"
+    timeout      = "3s"
+    grace_period = "60s"
