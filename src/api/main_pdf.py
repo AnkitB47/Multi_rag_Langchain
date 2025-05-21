@@ -1,87 +1,66 @@
 # src/api/main_pdf.py
-import os
-import uuid
-import logging
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Any, Dict
+import os, uuid, traceback
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header
+from typing import Dict, Any
 
-# ─── CONFIG ──────────────────────────────────────────────────────────────────
-API_AUTH_TOKEN = os.getenv("API_AUTH_TOKEN")
-if not API_AUTH_TOKEN:
-    raise RuntimeError("API_AUTH_TOKEN must be set in the environment")
+# Only one secret is read at import-time; defer the rest to inside the endpoint.
+API_TOKEN = os.getenv("API_AUTH_TOKEN")
+if not API_TOKEN:
+    raise RuntimeError("API_AUTH_TOKEN must be set in env")
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("pdf_rag_service")
-
-# ─── APP ─────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="PDF-RAG Service",
     version="1.0.0",
-    description="Upload a PDF and run Retrieval-Augmented queries over it",
+    description="Upload a PDF and run RAG queries over it.",
 )
 
-# Allow CORS (optional)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["GET","POST"],
-    allow_headers=["*"],
-)
+@app.get("/health")
+async def health() -> Dict[str, str]:
+    return {"status": "ok"}
 
-# Redirect root → docs
-@app.get("/", include_in_schema=False)
-def root():
-    return RedirectResponse("/docs")
-
-@app.get("/health", summary="Health check")
-async def health() -> Dict[str,str]:
-    return {"status":"ok"}
-
-@app.post(
-    "/process",
-    summary="Ingest uploaded PDF & run a RAG query",
-    response_model=Dict[str,Any]
-)
+@app.post("/process")
 async def process_pdf(
-    query: str = Form(..., description="Your question about the PDF"),
-    file: UploadFile = File(..., description="PDF file to ingest"),
-):
-    # save file
-    tmp_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
-    try:
-        data = await file.read()
-        with open(tmp_path, "wb") as f:
-            f.write(data)
-    except Exception as e:
-        logger.error("Failed to write upload: %s", e, exc_info=True)
-        raise HTTPException(500, "Could not save uploaded PDF")
+    query: str,
+    file: UploadFile = File(...),
+    authorization: str = Header(...)
+) -> Dict[str, Any]:
+    # — auth header check —
+    if authorization != f"Bearer {API_TOKEN}":
+        raise HTTPException(401, "Invalid token")
 
-    # lazy import so startup is fast
+    # — verify all the other secrets are set —
+    missing = [
+        k for k in ("PINECONE_API_KEY","PINECONE_INDEX_NAME","OPENAI_API_KEY")
+        if not os.getenv(k)
+    ]
+    if missing:
+        raise HTTPException(
+            500,
+            detail=f"Missing environment variables: {', '.join(missing)}"
+        )
+
+    # — lazy import so /health stays fast, and so we can catch errors —
     try:
         from langgraphagenticai.tools.pdf_tool import ingest_pdf, query_pdf
-    except ImportError as e:
-        logger.error("Import error: %s", e, exc_info=True)
-        raise HTTPException(500, "Internal server error")
+    except Exception as e:
+        tb = traceback.format_exc()
+        raise HTTPException(500, detail=f"Import/pdf_tool error:\n{tb}")
 
-    # ingest + query
+    # — write upload to disk —
+    tmp_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
+    with open(tmp_path, "wb") as out:
+        out.write(await file.read())
+
+    # — ingest & run RAG —
     try:
         ingest_pdf(tmp_path)
         answer = query_pdf(query)
     except Exception as e:
-        logger.error("RAG pipeline error: %s", e, exc_info=True)
-        raise HTTPException(500, "Error processing PDF")
-
-    # cleanup
-    try:
-        os.remove(tmp_path)
-    except OSError:
-        logger.warning("Could not delete temp file %s", tmp_path)
+        tb = traceback.format_exc()
+        raise HTTPException(500, detail=f"Processing error:\n{tb}")
+    finally:
+        # cleanup even on error
+        try: os.remove(tmp_path)
+        except OSError: pass
 
     return {"output": answer}
-
-# Custom 404 → point at docs
-@app.exception_handler(404)
-async def not_found(request: Request, exc: HTTPException):
-    return JSONResponse(404, {"detail":"Not Found – see /docs for API."})
