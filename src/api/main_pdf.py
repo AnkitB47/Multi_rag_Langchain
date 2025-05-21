@@ -1,28 +1,28 @@
 # src/api/main_pdf.py
+
 import os
 import uuid
 import logging
-import traceback
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Any, Dict
 
-# ─── CONFIG & LOGGER ──────────────────────────────────────────────────────────
+# ─── CONFIG ────────────────────────────────────────────────────────────────────
 API_AUTH_TOKEN = os.getenv("API_AUTH_TOKEN")
 if not API_AUTH_TOKEN:
-    logging.warning("API_AUTH_TOKEN not set — skipping header check.")
+    raise RuntimeError("API_AUTH_TOKEN must be set")
 
-logging.basicConfig(level=logging.DEBUG)  # <-- DEBUG level
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("pdf_rag_service")
 
-# ─── APP ────────────────────────────────────────────────────────────────────────
+# ─── APP & CORS ────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="PDF-RAG Service",
     version="1.0.0",
-    description="Upload a PDF and run RAG over it, with full debug logging.",
-    debug=True,  # <-- enable debug mode so tracebacks show in responses
+    description="Upload a PDF and run Retrieval-Augmented queries over it",
 )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,71 +30,78 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.exception_handler(Exception)
-async def catch_all_exceptions(request: Request, exc: Exception):
-    # Log full traceback
-    tb = traceback.format_exc()
-    logger.error("Unhandled exception:\n%s", tb)
-    # Return the exception text back in JSON so you can see it in the client
-    return JSONResponse(
-        status_code=500,
-        content={"detail": f"{type(exc).__name__}: {str(exc)}", "trace": tb}
-    )
-
+# ─── ROOT REDIRECT → DOCS ──────────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
-def root() -> Dict[str, str]:
-    return {"message": "See /docs for the OpenAPI UI."}
+def root() -> RedirectResponse:
+    return RedirectResponse(url="/docs")
 
+# ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 @app.get("/health", summary="Health check")
-def health() -> Dict[str, str]:
+async def health() -> Dict[str, str]:
     return {"status": "ok"}
 
+# ─── PDF INGEST & QUERY ENDPOINT ───────────────────────────────────────────────
 @app.post(
     "/process",
-    summary="Ingest a PDF & run a RAG query",
+    summary="Ingest uploaded PDF & run a RAG query",
     response_model=Dict[str, Any],
 )
 async def process_pdf(
-    query: str = Form(..., description="Your question"),
+    query: str = Form(..., description="Your question about the PDF"),
     file: UploadFile = File(..., description="PDF file to ingest"),
 ):
-    # 1) Save upload
+    # 1) Save the upload
     tmp_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
     try:
-        contents = await file.read()
+        data = await file.read()
         with open(tmp_path, "wb") as f:
-            f.write(contents)
-        logger.debug("Wrote upload to %s", tmp_path)
+            f.write(data)
     except Exception as e:
-        logger.exception("Failed to write PDF")
-        raise HTTPException(500, f"I/O error: {e}")
+        logger.exception("Failed to write uploaded PDF")
+        raise HTTPException(status_code=500, detail=f"I/O error: {e}")
 
-    # 2) Lazy-import RAG tools (so import-time errors bubble here)
+    # 2) Lazy-import your RAG helpers (fast startup)
     try:
         from langgraphagenticai.tools.pdf_tool import ingest_pdf, query_pdf
-    except Exception as e:
+    except ImportError as e:
         logger.exception("Import error in pdf_tool")
-        raise HTTPException(500, f"Import error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Import error: {e}"}
+        )
 
-    # 3) Ingest
+    # 3) Ingest into Pinecone
     try:
-        stats = ingest_pdf(tmp_path)
-        logger.debug("ingest_pdf returned: %s", stats)
+        result = ingest_pdf(tmp_path)
+        logger.info("Ingested %s chunks", result.get("ingested_chunks"))
     except Exception as e:
-        logger.exception("Error in ingest_pdf")
-        raise HTTPException(500, f"Ingest error: {e}")
+        logger.exception("Error during ingest_pdf")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Ingest error: {e}"}
+        )
 
-    # 4) Query
+    # 4) Run the RAG query
     try:
         answer = query_pdf(query)
-        logger.debug("query_pdf returned: %s", answer)
+        logger.info("RAG query succeeded")
     except Exception as e:
-        logger.exception("Error in query_pdf")
-        raise HTTPException(500, f"Query error: {e}")
+        logger.exception("Error during query_pdf")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Query error: {e}"}
+        )
     finally:
+        # 5) Cleanup temp file
         try:
             os.remove(tmp_path)
         except OSError:
-            logger.warning("Could not delete %s", tmp_path)
+            logger.warning("Could not delete temp file %s", tmp_path)
 
+    # 6) Return the answer
     return {"output": answer}
+
+# ─── FALLBACK 404 → DOCS ───────────────────────────────────────────────────────
+@app.exception_handler(404)
+async def not_found(request: Request, exc):
+    return RedirectResponse(url="/docs")
