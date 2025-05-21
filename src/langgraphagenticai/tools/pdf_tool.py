@@ -1,9 +1,11 @@
 import os
-from typing import List
+from typing import List, Dict
+import hashlib
 
+# Updated imports to use community packages
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Pinecone as PineconeVectorStore
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from pinecone import Pinecone
 
@@ -12,53 +14,63 @@ from langgraphagenticai.utils.pdf_utils import load_and_split_pdf
 # ─────────────────────────────────────────────────────────────────────────────
 #   CONFIGURATION FROM ENV
 # ─────────────────────────────────────────────────────────────────────────────
-PINECONE_API_KEY   = os.environ["PINECONE_API_KEY"]
-PINECONE_INDEX     = os.environ["PINECONE_INDEX_NAME"]
+PINECONE_API_KEY = os.environ["PINECONE_API_KEY"]
+PINECONE_INDEX = os.environ["PINECONE_INDEX_NAME"]
 EMBEDDING_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 
 # ─────────────────────────────────────────────────────────────────────────────
-#   SETUP PINECONE & VECTORSTORE
+#   SETUP PINECONE & VECTORSTORE (Fixed initialization)
 # ─────────────────────────────────────────────────────────────────────────────
 pc = Pinecone(api_key=PINECONE_API_KEY)
-index = pc.Index(PINECONE_INDEX)
+pinecone_index = pc.Index(PINECONE_INDEX)  # Renamed to avoid confusion
 
 embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_ID)
-vectordb   = PineconeVectorStore(
-    index=index,
-    embedding=embeddings.embed_query,
+
+# Initialize vectorstore with correct parameters
+vectordb = PineconeVectorStore(
+    index=pinecone_index,
+    embedding=embeddings,  # Pass the embeddings object directly
     text_key="text"
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
 #   PDF INGEST & QUERY FUNCTIONS
 # ─────────────────────────────────────────────────────────────────────────────
-def ingest_pdf(pdf_path: str, namespace: str = "default") -> None:
+def ingest_pdf(pdf_path: str, namespace: str = "default") -> Dict[str, int]:
     """
     Load PDF, split into chunks, embed, and upsert into Pinecone.
-    Uses direct upsert for better control over vector data.
+    Returns dictionary with count of ingested chunks.
     """
     docs = load_and_split_pdf(pdf_path)
     vectors = []
     
     for i, doc in enumerate(docs):
         embedding = embeddings.embed_documents([doc.page_content])[0]
+        doc_hash = hashlib.md5(doc.page_content.encode()).hexdigest()[:8]
+        
         vectors.append({
-            "id": f"doc-{i}-{abs(hash(doc.page_content))}",   # Positive hash
+            "id": f"doc-{i}-{doc_hash}",
             "values": embedding,
-            "metadata": {"text": doc.page_content}
+            "metadata": {
+                "text": doc.page_content,
+                "source": os.path.basename(pdf_path)
+            }
         })
     
-    index.upsert(vectors=vectors, namespace=namespace)
+    pinecone_index.upsert(vectors=vectors, namespace=namespace)
+    return {"ingested_chunks": len(vectors)}
 
 def query_pdf(query: str, namespace: str = "default") -> str:
     """
     Run a RetrievalQA chain over Pinecone index and return the answer.
     """
-    retriever = vectordb.as_retriever(namespace=namespace)
+    retriever = vectordb.as_retriever(
+        namespace=namespace,
+        search_kwargs={"k": 3}
+    )
     qa = RetrievalQA.from_chain_type(
-        llm=ChatOpenAI(),
+        llm=ChatOpenAI(model="gpt-3.5-turbo", temperature=0.3),
         chain_type="stuff",
-        retriever=retriever,
-        return_source_documents=True
+        retriever=retriever
     )
     return qa.run(query)

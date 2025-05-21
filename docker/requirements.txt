@@ -2,19 +2,17 @@
 python-dotenv>=1.0.0
 aiohttp>=3.9.0
 tiktoken>=0.6.0
-pydantic>=2.6.0
+pydantic>=2.6.0,<3.0.0  # LangChain isn't fully Pydantic v2 compatible yet
 
-# ===== PINECONE (CRITICAL) =====
-pinecone>=3.0.0  # Must use this instead of pinecone-client
+# ===== PINECONE =====
+pinecone-client>=3.0.0  # Explicit client package
 
 # ===== LANGCHAIN ECOSYSTEM =====
-langchain>=0.1.14
+langchain==0.1.14  # Pinned for stability
+langchain-community==0.0.21  # Critical for deprecated imports
 langchain-core>=0.1.47
-langchain-community>=0.0.21  # Replaces deprecated imports
-langchain-text-splitters
+langchain-text-splitters>=0.0.1
 langchain-openai>=0.1.0
-google-generativeai>=0.3.2
-google
 
 # ===== EMBEDDINGS =====
 sentence-transformers>=2.7.0
@@ -23,7 +21,7 @@ openai>=1.13.3
 # ===== PDF PROCESSING =====
 PyMuPDF>=1.23.22
 pypdf>=3.0.0
-unstructured>=0.12.0
+unstructured[pdf]>=0.12.0  # Explicit PDF support
 
 # ===== LANGGRAPH =====
 langgraph>=0.0.40
@@ -33,6 +31,5 @@ fastapi>=0.95.0
 uvicorn>=0.22.0
 httpx>=0.24.0
 
-# ===== DEVELOPMENT =====
-pytest>=7.0.0
-flake8>=6.0.0
+# ===== OPTIONAL/GOOGLE =====
+google-generativeai>=0.3.2  # Only if using Gemini
