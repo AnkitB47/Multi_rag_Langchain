@@ -1,35 +1,61 @@
-# ===== CORE DEPENDENCIES =====
-python-dotenv>=1.0.0
+# --- Core App ---
+python-dotenv
 aiohttp
-tiktoken>=0.6.0
-pydantic
+tiktoken
+pydantic>=2.6.4
 
-# ===== PINECONE =====
-pinecone>=3.0.0
+# --- LangChain & Ecosystem ---
+langchain>=0.1.16
+langchain-core>=0.1.40
+langchain-community>=0.0.33
+langchain-pinecone>=0.0.6
+langchain-openai>=0.1.6
 
-# ===== LANGCHAIN ECOSYSTEM =====
-langchain>=0.1.14
-langchain-community>=0.0.21
-langchain-core>=0.1.47
-langchain-text-splitters>=0.0.1
-langchain-openai>=0.1.0
-
-# ===== EMBEDDINGS =====
-sentence-transformers>=2.2.2
-openai>=1.13.3
-
-# ===== PDF PROCESSING =====
-PyMuPDF>=1.23.22
-pypdf>=3.0.0
-unstructured[pdf]>=0.12.0
-
-# ===== LANGGRAPH =====
+# --- LangGraph Orchestration ---
 langgraph>=0.0.40
 
-# ===== API SERVER =====
-fastapi>=0.95.0
-uvicorn>=0.22.0
-httpx>=0.24.0
+# --- Embeddings & Vector DB ---
 
-# ===== OPTIONAL/GOOGLE =====
-google-generativeai>=0.3.2
+pinecone-client>=3.0.0
+openai>=1.14.3
+google-generativeai>=0.4.1
+google
+pgvector
+sqlalchemy
+
+# --- Optional Transformers (fallback embedding & tools) ---
+sentence-transformers>=2.7.0  # UPDATED: Ensure CLIP support
+transformers>=4.41.0
+numpy<2.0
+faiss-cpu==1.7.2
+torch==2.2.2 
+accelerate
+einops>=0.7.0
+
+# --- File Parsing & Tools ---
+PyMuPDF
+arxiv
+pypdf
+duckduckgo-search
+yfinance
+
+# --- Image Processing ---  # NEW SECTION
+pillow>=10.0.0  # Required for image operations
+opencv-python-headless>=4.8.0  # NEW: Helpful for advanced image processing
+imageio>=2.31.1  # NEW: Additional image support
+
+# --- Agent Frameworks ---
+phidata
+groq
+agno
+phi
+tantivy>=0.21.0
+lancedb>=0.4.5
+
+# --- Server / API ---
+fastapi>=0.109.0
+uvicorn>=0.27.0
+
+# --- Dev, Test, Lint ---
+pytest
+flake8
