@@ -3,6 +3,9 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
+# set PYTHONPATH so imports "langgraphagenticai.*" work
+ENV PYTHONPATH=/app/src
+
 # system deps for PDF & images
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -16,9 +19,6 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
 
 # copy your code
 COPY src/ /app/src
-
-# set PYTHONPATH so imports "langgraphagenticai.*" work
-ENV PYTHONPATH=/app/src
 
 # expose the FastAPI port
 ENV PORT=8001

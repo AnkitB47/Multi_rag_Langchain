@@ -1,18 +1,18 @@
 # ===== CORE DEPENDENCIES =====
-python-dotenv
-aiohttp
+python-dotenv>=1.0.0
+aiohttp>=3.9.0
 tiktoken>=0.6.0
-pydantic 
+pydantic>=2.6.0,<3.0.0
 
 # ===== PINECONE =====
-pinecone>=2.5.3  # Explicit client package
+pinecone>=2.2.1,<3.0.0
 
 # ===== LANGCHAIN ECOSYSTEM =====
-langchain>=0.1.14  
-langchain-community>=0.0.21  
-langchain-core>=0.1.47
-langchain-text-splitters
-langchain-openai
+langchain==0.1.14
+langchain-community>=0.0.30,<0.1.0
+langchain-core>=0.1.47,<0.2.0
+langchain-text-splitters>=0.0.1
+langchain-openai>=0.1.0
 
 # ===== EMBEDDINGS =====
 sentence-transformers>=2.2.2
@@ -20,16 +20,16 @@ openai>=1.13.3
 
 # ===== PDF PROCESSING =====
 PyMuPDF>=1.23.22
-pypdf
-unstructured[pdf]  # Explicit PDF support
+pypdf>=3.0.0
+unstructured[pdf]>=0.12.0
 
 # ===== LANGGRAPH =====
 langgraph>=0.0.40
 
 # ===== API SERVER =====
-fastapi
-uvicorn
-httpx
+fastapi>=0.95.0
+uvicorn>=0.22.0
+httpx>=0.24.0
 
 # ===== OPTIONAL/GOOGLE =====
-google-generativeai>=0.3.2  # Only if using Gemini
+google-generativeai>=0.3.2

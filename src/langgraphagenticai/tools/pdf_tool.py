@@ -1,6 +1,5 @@
 import os
 from typing import List, Dict
-import hashlib
 
 # Updated imports to use community packages
 from langchain_community.embeddings import HuggingFaceEmbeddings
