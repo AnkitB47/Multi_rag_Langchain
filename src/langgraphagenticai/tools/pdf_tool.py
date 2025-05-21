@@ -27,7 +27,7 @@ embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_ID)
 
 # Initialize vectorstore with correct parameters
 vectordb = PineconeVectorStore(
-    index=pinecone_index,
+    client=pinecone_index,
     embedding=embeddings,  # Pass the embeddings object directly
     text_key="text"
 )
