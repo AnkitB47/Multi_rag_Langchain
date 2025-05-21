@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  PORT: 8080
+  PORT: 8080  
   FLY_APP: multi-ai-chatbot
 
 jobs:
@@ -46,6 +46,7 @@ jobs:
           --strategy immediate \
           --env PORT=$PORT
       env:
+        FLY_API_TOKEN:     ${{ secrets.FLY_API_TOKEN }}
         PINECONE_API_KEY:   ${{ secrets.PINECONE_API_KEY }}
         PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
         OPENAI_API_KEY:     ${{ secrets.OPENAI_API_KEY }}
