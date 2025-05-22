@@ -8,8 +8,12 @@ pydantic
 langchain>=0.1.14
 langchain-core>=0.1.47
 langchain-community>=0.0.21
+langchain-pinecone
+langchain-huggingface
 pinecone
 sentence-transformers>=2.2.2
+pinecone-client>=3.0.0
+huggingface_hub[hf_xet]
 
 # ─── EMBEDDINGS & LLMs ───────────────────────────────────────────────────────
 openai>=1.13.3
