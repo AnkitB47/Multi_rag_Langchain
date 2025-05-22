@@ -8,12 +8,11 @@ primary_region = "ams"
   PORT = "8080"
 
 [processes]
-  # Use ${PORT} so Fly injects the env var
   web = "uvicorn api.main_pdf:app --host 0.0.0.0 --port ${PORT} --log-level info"
 
 [[services]]
-  # Point this service at the "web" process above
-  process       = "web"
+  # ← bind this service to your "web" process
+  processes     = ["web"]
   internal_port = 8080
   protocol      = "tcp"
 
@@ -25,7 +24,7 @@ primary_region = "ams"
     path         = "/health"
     interval     = "10s"
     timeout      = "3s"
-    grace_period = "60s"   # give uvicorn imports time to load
+    grace_period = "60s"
 
   [[services.tcp_checks]]
     interval     = "10s"
