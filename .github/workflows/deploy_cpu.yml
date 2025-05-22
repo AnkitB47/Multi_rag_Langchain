@@ -43,8 +43,7 @@ jobs:
         flyctl deploy --remote-only \
           --app $FLY_APP \
           --dockerfile docker/Dockerfile.cpu \
-          --strategy immediate \
-          --no-buildpacks
+          --no-cache \
           --env PORT=$PORT
       env:
         FLY_API_TOKEN:     ${{ secrets.FLY_API_TOKEN }}

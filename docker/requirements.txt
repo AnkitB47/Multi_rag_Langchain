@@ -8,12 +8,13 @@ pydantic
 langchain>=0.1.14
 langchain-core>=0.1.47
 langchain-community>=0.0.21
-langchain-openai
-langchain-pinecone       # LangChain’s Pinecone wrapper
-langchain-huggingface    # For HuggingFaceEmbeddings
+# langchain-openai
+# langchain-pinecone       # LangChain’s Pinecone wrapper
+# langchain-huggingface    # For HuggingFaceEmbeddings
 
 # ─── PINECONE (v3+) ──────────────────────────────────────────────────────────
-pinecone-client>=3.0.0     # the official v3+ Python SDK
+# pinecone-client>=3.0.0     # the official v3+ Python SDK
+pinecone
 
 # ─── EMBEDDINGS & LLMs ───────────────────────────────────────────────────────
 sentence-transformers>=2.2.2
@@ -27,12 +28,12 @@ unstructured[pdf]
 
 # ─── OPTIONAL TOOLS ──────────────────────────────────────────────────────────
 # (only if you actually need these)
-transformers
-numpy
-faiss-cpu==1.7.2
-torch==2.2.2
-accelerate
-einops
+# transformers
+# numpy
+# faiss-cpu==1.7.2
+# torch==2.2.2
+# accelerate
+# einops
 
 # ─── API SERVER ──────────────────────────────────────────────────────────────
 fastapi
