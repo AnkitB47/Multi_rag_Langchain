@@ -5,14 +5,14 @@ tiktoken>=0.6.0
 pydantic
 
 # ─── LANGCHAIN ECOSYSTEM ─────────────────────────────────────────────────────
-langchain>=0.1.62,<0.2
+langchain>=0.1.17,<0.2.0
 langchain-core>=0.1.92,<0.2
-langchain-community>=0.0.47,<0.1.0
-pinecone-client>=2.2,<3
+langchain-community>=0.0.47,<0.2.0
+pinecone-client>=2.2.0,<3.0.0
 
 # ─── EMBEDDINGS & LLMs ───────────────────────────────────────────────────────
-sentence-transformers>=2.2,<3
-openai>=1.13.3
+sentence-transformers>=2.2.0,<3.0.0
+openai>=1.13.3,<2.0.0
 google-generativeai>=0.3.2
 
 # ─── PDF / FILE PROCESSING ───────────────────────────────────────────────────
