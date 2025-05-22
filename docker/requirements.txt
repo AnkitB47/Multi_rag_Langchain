@@ -5,9 +5,9 @@ tiktoken>=0.6.0
 pydantic
 
 # ─── LANGCHAIN ECOSYSTEM ─────────────────────────────────────────────────────
-langchain>=0.1.17,<0.2.0
-langchain-core>=0.1.92,<0.2
-langchain-community>=0.0.47,<0.2.0
+langchain>=0.2.0,<0.4.0
+langchain-core>=0.2.0,<0.4.0
+langchain-community>=0.0.47 
 pinecone-client>=2.2.0,<3.0.0
 
 # ─── EMBEDDINGS & LLMs ───────────────────────────────────────────────────────
