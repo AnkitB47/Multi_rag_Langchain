@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
       torch==2.1.10+cpu \
       torchvision==0.14.1+cpu \
       torchaudio==0.10.1+cpu \
-      --index-url https://download.pytorch.org/whl/cpu/torch_stable.html \
+      --index-url https://download.pytorch.org/whl/cpu \
  && pip install --no-cache-dir -r /app/requirements.txt
 
 # ─── COPY APP SOURCE ───────────────────────────────────────────────────────────
