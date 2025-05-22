@@ -1,30 +1,31 @@
-# docker/Dockerfile.cpu
 FROM python:3.10-slim
-
-# ─── Build-time arg so Fly can inject its own index if you like ─────────────
-ARG PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
-ENV PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
 
 WORKDIR /app
 ENV PYTHONPATH=/app/src
 ENV PORT=8080
 
-# ─── System deps ─────────────────────────────────────────────────────────────
+# ─── System packages ──────────────────────────────────────────────────────────
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential gcc libjpeg-dev zlib1g-dev poppler-utils \
  && rm -rf /var/lib/apt/lists/*
 
-# ─── Copy & install Python deps ───────────────────────────────────────────────
+# ─── Copy & install Python deps ────────────────────────────────────────────────
 COPY docker/requirements.txt /app/requirements.txt
 
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+    \
+    # Install latest CPU-only torch stack
+ && pip install --no-cache-dir \
+      torch torchvision torchaudio \
+      --index-url https://download.pytorch.org/whl/cpu \
+    \
+    # Then your app deps (must include sentence-transformers etc.)
  && pip install --no-cache-dir -r /app/requirements.txt
 
-# ─── Copy your source & expose ────────────────────────────────────────────────
+# ─── Copy your app source ─────────────────────────────────────────────────────
 COPY src/ /app/src
 
+# ─── Runtime & entrypoint ────────────────────────────────────────────────────
 EXPOSE ${PORT}
-
-# ─── Launch ──────────────────────────────────────────────────────────────────
-CMD ["uvicorn","api.main_pdf:app","--host","0.0.0.0","--port","${PORT}","--log-level","info"]
+CMD ["sh", "-c", "uvicorn api.main_pdf:app --host 0.0.0.0 --port $PORT --log-level info"]
