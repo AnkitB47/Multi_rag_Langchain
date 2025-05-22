@@ -5,13 +5,16 @@ primary_region = "ams"
   dockerfile = "docker/Dockerfile.cpu"
 
 [env]
-  PORT = "8080"  
+  PORT = "8080"
 
 [processes]
-  web = "uvicorn api.main_pdf:app --host 0.0.0.0 --port $PORT --log-level info"
+  # Use ${PORT} so Fly injects the env var
+  web = "uvicorn api.main_pdf:app --host 0.0.0.0 --port ${PORT} --log-level info"
 
 [[services]]
-  internal_port = 8080   
+  # Point this service at the "web" process above
+  process       = "web"
+  internal_port = 8080
   protocol      = "tcp"
 
   [[services.ports]]
@@ -22,7 +25,7 @@ primary_region = "ams"
     path         = "/health"
     interval     = "10s"
     timeout      = "3s"
-    grace_period = "60s"  # give uvicorn time to boot & imports to lazy‐load
+    grace_period = "60s"   # give uvicorn imports time to load
 
   [[services.tcp_checks]]
     interval     = "10s"
