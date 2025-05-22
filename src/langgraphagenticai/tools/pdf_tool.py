@@ -27,12 +27,12 @@ embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_ID)
 
 # Initialize vectorstore with correct parameters
 vectordb = PineconeVectorStore(
-    index=pinecone_index,
+    client=pinecone_index,
     embedding=embeddings,  # Pass the embeddings object directly
     text_key="text"
 )
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────`──────────────────────────
 #   PDF INGEST & QUERY FUNCTIONS
 # ─────────────────────────────────────────────────────────────────────────────
 def ingest_pdf(pdf_path: str, namespace: str = "default") -> Dict[str, int]:
