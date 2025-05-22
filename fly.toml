@@ -8,10 +8,11 @@ primary_region = "ams"
   PORT = "8080"
 
 [processes]
+  # this must match the command you want to run
   web = "uvicorn api.main_pdf:app --host 0.0.0.0 --port ${PORT} --log-level info"
 
 [[services]]
-  # ← bind this service to your "web" process
+  # <— bind this service to your `web` process
   processes     = ["web"]
   internal_port = 8080
   protocol      = "tcp"

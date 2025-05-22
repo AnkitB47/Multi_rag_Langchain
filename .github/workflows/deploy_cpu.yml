@@ -44,6 +44,8 @@ jobs:
           --app $FLY_APP \
           --dockerfile docker/Dockerfile.cpu \
           --no-cache \
+          --strategy immediate \
+          --wait-timeout 5m \
           --env PORT=$PORT
       env:
         FLY_API_TOKEN:     ${{ secrets.FLY_API_TOKEN }}
