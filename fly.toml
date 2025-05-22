@@ -30,3 +30,6 @@ primary_region = "ams"
     interval     = "10s"
     timeout      = "3s"
     grace_period = "60s"
+
+[machines]
+  vm_size = "shared-cpu-2x"
