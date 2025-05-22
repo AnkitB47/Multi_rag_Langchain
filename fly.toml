@@ -5,10 +5,13 @@ primary_region = "ams"
   dockerfile = "docker/Dockerfile.cpu"
 
 [env]
-  PORT = "8080"  # or "8001" if you prefer
+  PORT = "8080"  
+
+[processes]
+  web = "uvicorn api.main_pdf:app --host 0.0.0.0 --port $PORT --log-level info"
 
 [[services]]
-  internal_port = 8080   # must match the PORT your container listens on
+  internal_port = 8080   
   protocol      = "tcp"
 
   [[services.ports]]
