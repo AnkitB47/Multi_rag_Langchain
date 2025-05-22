@@ -9,7 +9,6 @@ langchain>=0.1.14
 langchain-core>=0.1.47
 langchain-community>=0.0.21
 pinecone
-torch
 
 # ─── EMBEDDINGS & LLMs ───────────────────────────────────────────────────────
 sentence-transformers>=2.2.2
